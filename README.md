@@ -1,30 +1,23 @@
 # 🌟 Local **Super-Agents**: ***Secure** Practical AGI for the **Real World***
 
 ![](https://github.com/Independent-AI-Labs/local-super-agents/blob/main/res/built_on.png)
-## 🛡️ Safety First!
-In a rapidly evolving digital landscape, prioritizing **security**, **data ownership** and **transparency** becomes crucial for the safety of any enterprise and end-user environment. By bringing **secure, practical AI automation capabilities** to consumer and edge hardware, the **Local AI **Super-Agents**** platform empowers individuals and organizations to take back control of their data, staying ahead of the curve and reducing costs along the way.
 
-We offer a comprehensive approach to the development of **safe, agentic AI systems** at scale, building on top of leading **FOSS** solutions and architectures. Designed with a relentless focus on **compliance** with global security standards and a commitment to openness, the platform integrates **state-of-the-art language and vision models** with **privacy-first automation tools** and foundational **digital twin** technology.
-
-Our goal is to build a system, capable of complex task comprehension and real-time decision-making, that integrates safely and seamlessly with user and public data. Agent interactions via familiar communication channels, such as **email**, **instant messaging** and **web portals**, as well as full **audit trail** and **sandboxing** features are built in to facilitate faster adoption in high-dynamic and enterprise environments.
-
-Powered by our novel **Outcome-Driven Process Modelling** and **Reasoning** framework, **Super-Agents** are more than runtime-generated programs. They are purpose-driven **digital entities**, capable of simulating and understanding practical scenarios by employing various **goal decomposition**, **self-reflection** and **pro-active solution exploration** techniques. More importantly - they can do so in a way that is inspired by our own human cognitive ability, **learning as they go** and enabling advanced AI-powered functionality across a wide range of personal and professional contexts. 
-
-We invite you to explore an ecosystem where technology serves its rightful purpose: to **empower users**, not exploit them. Through ****natural-language automation**** of **distributed learning**, **secure data management**, and **software integration**, we aim to bridge the gap between cutting-edge AI and the **real-world needs** of individuals and businesses.
+Privacy-first agentic framework with powerful reasoning & task automation features. Natively distributed and fully **ISO 27XXX** compliant.
 
 ---
 
 ## 🏗️ Development Approach
 
-We believe that the future of software is defined by **security-driven development**, **evolving architectures**, and **on-demand functionality** that can be rapidly deployed, scaled, and replaced as needed. This, and the shift towards **distributed** workloads emphasizes granular access controls, continuous monitoring, and **Zero Trust** principles to ensure data integrity and regulatory compliance. As AI further integrates into every facet of computing—from edge devices to enterprise backends—**robust encryption**, **hardware-based security enclaves**, and **real-time vulnerability assessments** become non-negotiable requirements. In this evolving landscape, building software with **defense in depth**, **secure-by-design** practices, and automated checks not only fortifies systems but also lays the groundwork for sustainable, adaptive solutions in an era where functionality must be both **immediate** and **inherently trustworthy**.
+We believe that the future of software is defined by **security-driven development**, **evolving architectures**, and **on-demand functionality** that can be rapidly deployed, scaled, and replaced as needed. This, and a shift towards **distributed** workloads emphasize granular access controls, continuous monitoring, and **Zero Trust** principles to ensure system integrity and regulatory compliance.
 
-Finally, by further ensuring that your AI operates **securely and transparently** on **local or self-hosted** systems, you can eliminate the risks of **centralized data collection** and intrusive **surveillance**.
 
 ---
 
 ## **🔑 Key Features**
 
 ---
+
+### **STATUS**
 
 | ✅ **STABLE RELEASE** | ☑️ **DEV RELEASE** | 🧪 **QA / TESTING** | 🚧 **IN PROGRESS** | 📋 **PLANNED** | 💬 **DISCUSSION** |
 
@@ -38,16 +31,17 @@ Finally, by further ensuring that your AI operates **securely and transparently*
 
 ### **🧠 100% Transparent Machine Reasoning & Chain-of-Though Generation**
    - 🚧 Use your AI assistant to create **interactive tasks**, monitor agent activity and manage platform operations
-   - 🚧 **Pause**, **resume**, **replay**, **clone** and execute tasks locally or within a distributed environment when additional computational resources are required
-   - 🚧 Implements the **Outcome-Driven Process Modeling & Reasoning Framework**  (**"CO-FORM"** - paper coming soon) through a modular **Alignment & Reasoning** core system
+   - 🚧 **Pause**, **resume**, **replay**, **clone** and execute tasks locally and within secure distributed environments
+   - 🚧 Modular **Alignment & Reasoning** core system, allowing granular control over **guardrails**, **CoT** models, templates, and more
    - 🚧 Emulates human cognitive processes for natural task / activity comprehension, **intelligent context building** and user interpretability
-   - 🚧 Facilitates complex **issue decomposition, goal identification** and **solution generation** for real-world problem-solving
+   - 🚧 Facilitates complex **issue decomposition**, **goal identification** and **interactive solution generation** for real-world problem-solving
+   - 🚧 Architectural paper coming soon!
 
 ---
 
-### **🚅 High-Performance Text Analysis & Long-Term Memory Features**
-   - 🧪 CPU-optimized text document indexing & semantic search through **High-Yield Pattern Extraction** (**"HYPE"** - documentation and benchmarks coming soon)  
-   - 🚧 **Continuous analysis** of operational metadata, conversation transcripts and user instructions for **context-optimal memory retrieval** during inference
+### **🚅 High-Performance Text Analysis, User Memory & Model Tuning Features**
+   - 🧪 CPU-optimized text document indexing & semantic search through **High-Yield Pattern Extraction** (**"HYPE"** - document and benchmarks coming soon)  
+   - 🚧 **Continuous analysis** of operational metadata, conversation transcripts and user instructions for **context-optimal memory retrieval** and dynamic alignment with user preference
    - 🚧 Automated dataset curation for **test-time training**, model **re-training** and **fine-tuning** (including support for **LoRA**, **QLoRA**, **DPO**, **QA-LoRA** and **ReLoRA**)
 
 ---
@@ -86,7 +80,7 @@ Finally, by further ensuring that your AI operates **securely and transparently*
 ---
 
 ### **🪟 Complete Windows Integration**
-   - 🚧 **Streamlined** installation on **Windows** systems, binary distribution & official auto-update channels
+   - 🚧 **Streamlined** installation on **Windows** systems & official auto-update channels
    - 🚧 Floating, fullscreen & desktop AI assistant app modes (**Open WebUI**)
    - 🚧 **System / network activity feed** with notifications for agent actions and file syncs
    - 🚧 **User-controlled agent access** to any application window (view / read only)
