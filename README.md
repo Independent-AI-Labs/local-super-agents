@@ -37,6 +37,7 @@ We believe that the future of software is defined by **security-driven developme
    - 🚧 Facilitates complex **issue decomposition**, **goal identification** and **interactive solution generation** for real-world problem-solving
    - 🚧 Architectural paper coming soon!
 
+![](https://github.com/Independent-AI-Labs/local-super-agents/blob/main/res/task_decomposition.png)
 ---
 
 ### **🚅 High-Performance Text Analysis, User Memory & Model Tuning Features**
