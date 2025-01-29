@@ -1,12 +1,42 @@
 # High-Yield Pattern Extraction (HYPE)
-Memory and CPU-optimized semantic search & data annotation for the edge.
+**Memory** and **CPU-optimized** semantic search & data annotation for **the edge**.
 
 
 ---
 
-##  Features
+A light and portable text search engine that leverages both Language Models and high-performance pattern matching. This hybrid searching approach enables high-volume text processing on consumer-grade hardware.
 
-HYPE offers a comprehensive set of features to **optimize data processing, indexing, and retrieval** for various document types and sizes. These features work in concert to provide a robust, adaptable, and efficient solution for advanced data analysis and search operations.
+---
+
+**CURRENT  HIGHSCORE:** Intel i9 14900F / Kingston NV2 M.2 SSD / 32GB RAM
+
+### **Structured Data Search (20 unique terms + scoring)**
+
+| Test                                                | Time (ms)   | Throughput                                                                                         |
+|-----------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
+| **Single-Core Item Search**                         | 6614.97     | **Raw Data:** 154.8 MB/s <br/>**Items:** 844,059.46 items/s                                         |
+| **Multi-Core Item Search**<br/>**Scaling:** +32% / Core | 10551.87    | **Raw Data:** 1,223.0 MB/s <br/>**Items:** 5,224,696.88 items/s          |
+
+### **Document Search (20 unique terms + scoring)**
+
+| Test                                                         | Time (s)    | Throughput                                                                                          |
+|--------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------------|
+| **Single-Core Document Search**                              | 6530.47    | **Raw Data:** 144.59 MB/s <br/>**Documents:** 2,556.94 docs/s                                       |
+| **Multi-Core Document Search**<br/>**Scaling:** +39%  / Core | 16722.97   | **Raw Data:** 1355.17 MB/s <br/>**Documents:** 23,964.16 docs/s           |
+|                                                              |             |                                                                                                     |
+
+> **Benchmark Datasets (pre-indexed, will be included):**  
+> - *Mother of All Movie Reviews* (structured, ~56M unique rows, ~1.3B searched)  
+> - *EUR-Lex Energy Legislation* (average ~500 KB each, ~17K unique documents, ~400K searched)
+
+> **CPU Core Scaling:**  
+> - Average core scaling will depend on many factors including CPU architecture, power budget, available cache, etc. Scaling beyond physical cores is usually very detrimental to performance.
+> - E.g. on heterogeneous, power limited platforms like the i9-14900F, the per-core scaling factor rapidly drops from ~80% at 2 concurrent processes to <60% at 8 and below 25% when all logical cores are used...
+> - Disk read times also have a significant impact, especially with structured data. Naturally, you'll need a high-performance SSD to get the most out of the solution.
+> - Generally, server-class CPUs are more consistent with their scaling and consumer-grade chips tend to have better single-core performance.
+---
+
+##  Features
 
 ### 1. Data Pre-Processing & Indexing
 
@@ -38,21 +68,6 @@ HYPE provides a **resource-aware** approach to file handling, optimizing the pro
               # Implementation details for finding valid block boundaries...
               ...
       return offsets
-  ```
-
-  ```python
-  def calculate_total_blocks(
-      file_size: int,
-      available_memory: int,
-      sub_blocks: int = os.cpu_count() // 2
-  ) -> int:
-      """
-      Calculate the total number of blocks based on file size, available memory, and number of physical CPUs.
-      ...
-      """
-      block_load_memory_limit = available_memory // sub_blocks
-      total_blocks = max(1, file_size // block_load_memory_limit)
-      return total_blocks * sub_blocks
   ```
 
   ```python
@@ -108,7 +123,7 @@ HYPE provides a **resource-aware** approach to file handling, optimizing the pro
       )
   ```
 
-This design enables **parallel I/O** operations and scales linearly with CPU resources in production environments. For more CPU-intensive tasks, HYPE also supports multi-processing (and multi-hosting/distributed deployments).
+For more CPU-intensive tasks, HYPE also supports multi-processing (and multi-hosting/distributed deployments).
 
 #### 1.2 Structured Data Item Caching & Indexing
 
@@ -143,7 +158,7 @@ def index_structured_data_file(
 
 Such an approach can handle **noisy or malformed data** commonly found in the wild. It is conceptually similar to the **column indexing** used by database engines, often applied when large volumes of sequential data need to be retrieved quickly.
 
-In the near future, an LLM-driven **auto-detection** of line-break sequences and validation patterns will allow fully automated indexing of raw data, with minimal human intervention.
+LLM-driven **auto-detection** of line-break sequences and validation patterns will allow fully automated indexing of raw data, with minimal human intervention.
 
 ---
 
@@ -209,14 +224,14 @@ def find_item_metadata(
 Planned annotation features include:
 
 - **Custom Field Declarations**  
-- **Python-Scriptable Text & Binary Matching Rules**  
+- **Scriptable Text & Binary Matching Rules**  
 - **Built-In Parallelization**  
 
 ---
 
 ### 3.  Document Content Extraction & Indexing
 
-HYPE can optionally handle content extraction for various document types:
+Handle content extraction for various document types:
 
 ```python
 def extract_file_content(file_path: str) -> Tuple[str, List[int]]:
@@ -375,15 +390,11 @@ def query_wiredtiger_file(file_path: str, query: Dict[str, Any]) -> List[Dict[st
     return [doc for doc in documents if match_document(doc, query)]
 ```
 
-Once completed, this integration will enable **offline** querying of MongoDB data without running a MongoDB instance, making it ideal for systems where memory consumption and overall resource usage must be minimized.
+This integration will enable **offline** querying of MongoDB data without running a MongoDB instance, making it ideal for systems where memory consumption and overall resource usage must be minimized.
 
 #### 7.2 Future Database Engine Support (TBD)
 
-Plans are in place to support direct or semi-direct data extraction from:
-
-- **SQLite**  
-- **PostgreSQL**  
-- **MySQL / MariaDB**
+Plans are in place to support direct or semi-direct data extraction from **SQLite** as well as other engines.
 
 #### 7.3 Database Query Generation (WIP)
 
@@ -400,7 +411,7 @@ HYPE supports **advanced query pre-processing** steps:
 - **Spelling Correction** (with custom dictionaries)  
 - **“Adjacent” Search Term Generation** using LLMs (WIP)  
 - **N-gram Generation** for fuzzy matching  
-- **Semantic Variations** (TBD)
+- **Variations** (TBD)
 
 ```python
 def preprocess_search_term(
@@ -424,36 +435,59 @@ def preprocess_search_term(
 
     # Case variations
     if not case_sensitive:
-        if search_term_string.lower() != search_term_string:
-            append_with_ngrams(search_term_string.lower(), search_term_strings)
-        if search_term_string.upper() != search_term_string:
-            append_with_ngrams(search_term_string.upper(), search_term_strings)
-        if search_term_string.title() != search_term_string:
-            append_with_ngrams(search_term_string.title(), search_term_strings)
+        ...
 
     return parse_search_terms(search_term_strings, ref_ids)
 ```
 
 #### 8.2 Result Post-Processing & Scoring
 
-HYPE includes a **flexible scoring system** for search results, factoring in term order, frequency, and distribution:
+HYPE includes a **flexible scoring system** for search results, factoring in term order, frequency, and distribution as well as other parameters:
 
 ```python
-def calculate_search_score(
-    matched_search_terms: List[SearchTerm],
-    document_length: int,
-    match_positions: List[int]
+        matched_search_terms: List["SearchTerm"],
+        document_length: int,
+        match_positions: List[int],
+        partial_match_penalty: float = 0.9,
+        proximity_window: int = 50,
+        ignore_known_noise: bool = True,
+        noise_markers: Optional[List[str]] = None
 ) -> float:
-    ...
-    # Score accumulation based on term order
-    for search_term in matched_search_terms:
-        score += 10 / (10 ** (search_term.order + 1))
-    ...
-    # Distribution factor
-    if match_positions and document_length > 0:
-        match_density = len(match_positions) / document_length
-        distribution_factor = 1 + min(1.0, match_density)
-        score *= distribution_factor
+    """
+    A unified scoring function that combines:
+      1) Order weighting      (lower weight for higher-order terms)
+      2) Unique term boosting (sqrt of the number of unique terms)
+      3) Coverage ratio       (matches/length)
+      4) Proximity clustering (fewer clusters => higher relevance)
+      5) Distribution factor  (spreading matches across doc => slight boost)
+      6) Partial-match penalty (for fuzzy matches)
+
+    :param matched_search_terms:
+        A list of SearchTerm objects. Each has:
+          - 'order': an integer indicating the term’s priority (0 = highest).
+          - 'text': the actual matched text.
+          - 'ref_ids': optional metadata (unused here).
+    :param document_length:
+        The total length of the document (characters or other measure).
+    :param match_positions:
+        The character positions (or indices) where each match occurred.
+        If you have multiple matches of the same term, you can list them all.
+    :param partial_match_penalty:
+        [0..1], a factor that penalizes partial/fuzzy matches. Default 0.9.
+    :param proximity_window:
+        The maximum distance between match positions to consider them
+        in one “cluster.” A smaller window => more clusters => lower score.
+    :param ignore_known_noise:
+        If True, tries to detect known “noise” hits (like 'aria' in '[font=Arial]')
+        and skip or penalize them. If False, all matches are counted equally.
+    :param noise_markers:
+        A list of known “noise” substrings or contexts. For instance,
+        [ "font=Arial", "color=", "style=", "<style", "<script", etc. ]
+        You can expand or modify to skip/penalize these matches.
+
+    :return:
+        A single float “score” that tries to reflect the overall relevance.
+    """
     ...
 ```
 
@@ -464,82 +498,13 @@ Future work includes:
 
 ---
 
-### 9. Large & Bulk File Searching
-
-HYPE uses **optimized strategies** for large-scale search:
-
-```python
-def bulk_search_files(
-    root_dir: str,
-    search_term_strings: List[str],
-    context_size_lines: int = 16,
-    large_file_size_threshold: int = 512 * 1024 * 1024,  # 512MB
-    min_score: float = 1,
-    and_search: bool = False,
-    exact_matches_only: bool = True
-) -> List[UnifiedSearchResult]:
-    ...
-    cpu_count = psutil.cpu_count(logical=False)
-    files_per_thread = max(1, len(small_files) // cpu_count)
-
-    for i in range(0, len(small_files), files_per_thread):
-        file_chunk = small_files[i : i + files_per_thread]
-        create_thread(
-            target=process_file_list,
-            args=(
-                file_chunk,
-                search_term_strings,
-                context_size_lines,
-                results_queue,
-                min_score,
-                and_search,
-                exact_matches_only,
-            )
-        )
-```
-
-### 10. Structured Data Searching
-
-HYPE also provides a **comprehensive** search approach for structured data using a **combined** multi-process/multi-thread strategy:
-
-```python
-def search_structured_data_batched(
-    file_path: str,
-    metadata_dir: str,
-    search_term_strings: List[str],
-    min_score: float = 1,
-    free_memory_usage_limit: float = 0.75,
-    memory_overhead_factor: int = 1,
-) -> List[UnifiedSearchResult]:
-    ...
-    search_terms = preprocess_search_term_list(search_term_strings)
-    num_physical_cores = psutil.cpu_count(logical=False)
-
-    if len(block_offsets) / 2 > num_physical_cores:
-        chunk_size = len(block_offsets) // num_physical_cores
-    else:
-        return search_structured_data_threaded(
-            file_path, metadata_dir, search_terms, min_score
-        )
-
-    chunks = [block_offsets[i : i + chunk_size] for i in range(0, len(block_offsets), chunk_size)]
-    with Manager() as manager:
-        results_queue = manager.Queue()
-        ...
-        return collect_and_merge_results(results_queue)
-```
-
----
-
-### 11. Future Enhancements
+### 9. Future Enhancements
 
 Planned improvements include:
 
 1. **Binary Data Search** (e.g., “binary” Aho-Corasick for non-text files)  
 2. **Enhanced Distributed Processing** (using tools like `huey`, `redis`)  
- **Expanded Machine Learning Integrations**  
-   - Thinc or other advanced NLP libraries  
-   - Model generation and inference for specialized NLP tasks  
+3. **Expanded Machine Learning / LLM Integration**
 4. **Real-Time Indexing and Search** for continuous data streams  
 5. **Advanced Visualization Tools** for search results and data patterns  
 

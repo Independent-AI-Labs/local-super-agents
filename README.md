@@ -2,7 +2,7 @@
 
 ![](https://github.com/Independent-AI-Labs/local-super-agents/blob/main/res/built_on.png)
 
-Privacy-first agentic framework with powerful reasoning & task automation features. Natively distributed and fully **ISO 27XXX** compliant.
+Privacy-first agentic framework with powerful reasoning & task automation capabilities. Natively distributed and fully **ISO 27XXX** compliant.
 
 ---
 
@@ -73,7 +73,7 @@ We believe that the future of software is defined by **security-driven developme
 
 ### **💻 Secure Remote & Internet Access**
    - 🧪 Self-hosted web access with optional automated **OpenVPN** and **Cloudflare** tunneling functionality
-   - 🧪 System-wide **tracking** and **advertisement** protection, reverse proxy support for web access
+   - 🧪 System-wide **tracking** and **advertisement** protection, reverse proxy support for web browsing
    - 🧪 Multi-process search engine aggregation & agent web surfer built on **SearXNG**, **Chrome Engine** and **Selenium**
    - 🧪 Automated web browsing that **avoids bot detection**, handles **client-side rendered data** and digests relevant content
    - 📋 Low-latency web-based **4K desktop streaming** for remote work, collaboration and agent supervision
@@ -84,8 +84,8 @@ We believe that the future of software is defined by **security-driven developme
    - 🚧 **Streamlined** installation on **Windows** systems & official auto-update channels
    - 🚧 Floating, fullscreen & desktop AI assistant app modes (**Open WebUI**)
    - 🚧 **System / network activity feed** with notifications for agent actions and file syncs
-   - 🚧 **User-controlled agent access** to any application window (view / read only)
-   - 💬 Platform launcher / dashboard GUI  
+   - 🚧 **User-controlled agent access** to any application window (view / read-only)
+   - 💬 Platform launcher & dashboard GUI
    - 💬 **General computer and browser use** for agents, **supervised** desktop and application management 
 
 ![](https://github.com/Independent-AI-Labs/local-super-agents/blob/main/res/screens/floating_assist.png)
