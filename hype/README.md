@@ -17,14 +17,14 @@ A light and portable text search engine that leverages Language Models and high-
 
 Intel i9 14900F / Kingston NV2 M.2 SSD / 64GB RAM
 
-### **Structured Data Search (20 unique terms + scoring)**
+### **Structured Data Search (10 unique terms + scoring)**
 
 | Test                                                | Time (ms)   | Throughput                                                                                         |
 |-----------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
 | **Single-Core Item Search**                         | 6614.97     | **Raw Data:** 154.8 MB/s <br/>**Items:** 844,059.46 items/s                                         |
 | **Multi-Core Item Search**<br/>**Scaling:** +32% / Core | 10551.87    | **Raw Data:** 1,223.0 MB/s <br/>**Items:** 5,224,696.88 items/s          |
 
-### **Document Search (20 unique terms + scoring)**
+### **Document Search (10 unique terms + scoring)**
 
 | Test                                                         | Time (s)    | Throughput                                                                                          |
 |--------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------------|

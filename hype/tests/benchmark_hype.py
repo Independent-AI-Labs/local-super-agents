@@ -86,7 +86,8 @@ def index_data_file(data_file: str, metadata_dir: str):
 
 def search_structured(data_file: str, metadata_dir: str, file_metadata_dir: str, partial_data_file: str = None, partial_metadata_dir: str = None) -> Tuple[
     float, str]:
-    search_term_strings = ["Bulgaria"]
+    # Misspelled on purpose.
+    search_term_strings = ["Bulgraia"]
 
     start_time = time.time()
 
@@ -140,8 +141,16 @@ def search_structured(data_file: str, metadata_dir: str, file_metadata_dir: str,
 
 def single_bulk_search(search_dir):
     search_terms = [
-        "LNG Terminal", "Bulgaria", "natural gas", "energy infrastructure",
-        "smart grid", "energy storage", "energy security", "environmental impact", "green finance"
+        "LNG facility",
+        "Bulgaria energy",
+        "natural gas supply",
+        "renewable infrastructure",
+        "smart energy systems",
+        "grid modernization",
+        "battery storage",
+        "energy resilience",
+        "sustainability impact",
+        "climate finance"
     ]
     search_results = bulk_search_files(search_dir, search_terms, min_score=128, and_search=False)
     return search_results
