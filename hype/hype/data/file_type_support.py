@@ -22,7 +22,7 @@ TEXT_BASED_EXTENSIONS = [
     '.scala',  # Scala
     '.groovy',  # Groovy
     '.pl', '.pm',  # Perl
-    '.sh', '.bash', '.zsh',  # Shell scripts
+    '.sh', '.bash', '.zsh',  # Shell env
     '.lua',  # Lua
     '.r', '.R',  # R
     '.m',  # MATLAB/Octave
