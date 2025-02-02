@@ -1,0 +1,4 @@
+pywin32~=308
+pynput~=1.7.7
+pillow~=11.1.0
+open-webui~=0.5.7

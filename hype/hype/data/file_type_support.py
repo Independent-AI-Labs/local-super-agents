@@ -22,7 +22,7 @@ TEXT_BASED_EXTENSIONS = [
     '.scala',  # Scala
     '.groovy',  # Groovy
     '.pl', '.pm',  # Perl
-    '.sh', '.bash', '.zsh',  # Shell env
+    '.sh', '.bash', '.zsh',  # Shell third_party
     '.lua',  # Lua
     '.r', '.R',  # R
     '.m',  # MATLAB/Octave
@@ -33,7 +33,7 @@ TEXT_BASED_EXTENSIONS = [
     '.adoc', '.asciidoc',  # AsciiDoc
 
     # Config and build files
-    '.properties', '.env',
+    '.properties', '.third_party',
     '.gitignore', '.dockerignore',
     '.gradle',
     '.cmake', 'CMakeLists.txt',

@@ -153,5 +153,3 @@ servitors/*
 
 *.json
 *.onnx
-
-lsa-win-*
