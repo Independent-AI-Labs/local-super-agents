@@ -4,11 +4,11 @@ from ctypes import wintypes
 import win32gui
 from _ctypes import byref
 
-GUI_CLASS_NAME = "PrivateAI Wrapper"
-GUI_WINDOW_TITLE = "PrivateAI Web"
+GUI_CLASS_NAME = "LocalSuperAgentsGUI"
+GUI_WINDOW_TITLE = "Super-Agents"
 
 SMART_WINDOW_WIDTH = 420
-SMART_WINDOW_HEIGHT = 520
+SMART_WINDOW_HEIGHT = 615
 
 try:
     # Structure definitions:

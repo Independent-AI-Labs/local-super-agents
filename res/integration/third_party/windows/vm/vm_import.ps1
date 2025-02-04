@@ -29,7 +29,7 @@ Execute-Step "Checking for existing NAT network 'AgentsNATNetwork'" {
     $existingNat = Get-NetNat -Name "AgentsNATNetwork" -ErrorAction SilentlyContinue
     if ($existingNat) {
         Write-Host "Existing NAT network found. Running cleanup script..."
-        $cleanupScript = "$env:install_path\agents\integration\res\third_party\windows\vm\vm_cleanup.ps1"
+        $cleanupScript = "$env:install_path\agents\res\integration\third_party\windows\vm\vm_cleanup.ps1"
         if (Test-Path $cleanupScript) {
             powershell -ExecutionPolicy Bypass -File $cleanupScript
             Write-Host "Cleanup script executed successfully."
@@ -87,7 +87,7 @@ Execute-Step "Creating NAT network 'AgentsNATNetwork'" {
 
 # 6. Path to the folder containing the exported VM configuration
 # Define the directory path
-$VMDirectory = "$env:install_path\agents\integration\res\third_party\windows\vm\AgentsVM\Virtual Machines"
+$VMDirectory = "$env:install_path\agents\res\integration\third_party\windows\vm\AgentsVM\Virtual Machines"
 
 # Get the latest .vmcx file in the directory
 $VMXFile = Get-ChildItem -Path $VMDirectory -Filter "*.vmcx" | Select-Object -First 1

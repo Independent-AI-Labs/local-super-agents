@@ -667,11 +667,17 @@ def draw_text_line_with_animation(hwnd: int, window_data: TextWindowData):
     text = ""
     opacity = 255
     visibility_frame_count = 0
+    drawing_done = True
 
     while True:
-        if len(window_data.text_deque) > 0:
+        if len(window_data.text_deque) > 0 and drawing_done:
             text = window_data.text_deque.popleft()
-            print(f"PULLING {text}")
+            drawing_done = False
+            print(f">>> {text}")
+
+            visibility_frame_count = 0
+            opacity = 255
+            window_data.blend.SourceConstantAlpha = opacity  # Ensure blend is fully opaque for the new message
 
             # Initialize a 32-bit DIB section
             # hBitmap, _ = create_dib_section_bitmaps(window_data.hdc_mem, width, height)
@@ -742,10 +748,6 @@ def draw_text_line_with_animation(hwnd: int, window_data: TextWindowData):
                     time.sleep(0.003)
 
                 time.sleep(random.uniform(0.005, 0.02))
-
-            print("RESETTING FRAMES")
-            visibility_frame_count = 0
-            opacity = 255
         else:
             if visibility_frame_count < len(text) * 8:
                 # Keep opacity at 255 for the first 300 frames
@@ -753,6 +755,8 @@ def draw_text_line_with_animation(hwnd: int, window_data: TextWindowData):
             elif opacity > 0:
                 # Gradually reduce opacity after 300 frames
                 opacity = max(0, opacity - 10)
+            elif opacity <= 0:
+                drawing_done = True
 
             # Ensure the opacity stays within the range [0, 255]
             window_data.blend.SourceConstantAlpha = opacity

@@ -1,11 +1,14 @@
+import os
+
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 import win32gui
 from pynput import keyboard
 
-from integration.data.config import CHROME_PATH, OPEN_WEBUI_BASE_URL, DESKTOP_OVERLAY_TARGET_FRAME_TIME, OPEN_WEBUI_PORT
+from integration.data.config import CHROME_PATH, OPEN_WEBUI_BASE_URL, DESKTOP_OVERLAY_TARGET_FRAME_TIME, OPEN_WEBUI_PORT, INSTALL_PATH
 from integration.desktop.models.desktop_target import DesktopTarget
 from integration.desktop.windows.action_manager import ActionManager
 from integration.desktop.windows.components.smart_window import SmartWindow
@@ -173,20 +176,29 @@ def init():
         print("[ERROR] Couldn't wait for Open WebUI to start. UI is not going to be loaded.")
         # TODO
     else:
-        add_message("Launching Web UI...")
+        add_message("Preparing AI Assistant...")
 
+        STARTF_USESHOWWINDOW = 1
+        SW_SHOWMINIMIZED = 2
+
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = SW_SHOWMINIMIZED
         # 1) Launch Chromium or Brave in "app mode"
+
         subprocess.Popen(
             [
                 CHROME_PATH,
                 "--disable-gpu",
+                fr'--user-data-dir={INSTALL_PATH}\.tools\chromedata',
                 f"--app={OPEN_WEBUI_BASE_URL}",
                 "--no-first-run",
                 "--no-default-browser-check",
                 "--disable-notifications",
                 "--disable-infobars",
                 "--kiosk"
-            ]
+            ],
+            startupinfo=startupinfo
         )
 
         sleep_eyes_open(2)
@@ -206,7 +218,7 @@ def init():
             ACTION_MANAGER.action_hwnds[action.uid] = hwnd
 
         move_target_hwnd, window_data = create_icon_window("MoveTarget",
-                                                           "..\\..\\res\\img\\target.gif",
+                                                           rf"{INSTALL_PATH}\agents\res\integration\graphics\ui\target.gif",
                                                            final_width=64,
                                                            final_height=64,
                                                            g_buffers=ACTION_MANAGER.G_BUFFERS)
@@ -217,8 +229,6 @@ def init():
         # ACTION_MANAGER.text_window_data[text_hwnd] = window_data
 
         OPEN_WEBUI_WINDOW.toggle_floating_mode()
-
-        add_message("Press ALT + Q to summon the Assistant.")
 
         print("[INFO] All processes started. Monitoring...")
 
@@ -236,6 +246,15 @@ def add_message(message: str):
 def main_loop():
     # 1) Initialize GUI components.
     init()
+
+    if not os.path.exists(fr"{Path.home()}\.ollama\models\manifests\registry.ollama.ai\library\deepseek-r1"):
+        add_message("Launch the AI Assistant and create your Open WebUI account!")
+        add_message("Downloading default model (DeepSeek-R1:8B / 16K context length)...")
+        add_message("DeepSeek-R1:8B will become available under 'Models' in a few minutes.")
+        add_message("10GB+ of VRAM is recommended. Multi-GPU setups are supported!")
+        add_message("Visit ollama.com/search to explore thousands of free models!")
+
+    # add_message("Press ALT + Q to summon the Assistant.")
 
     # 2) Standard message loop + small idle
     #    We'll pump messages so the parent can process events properly. Ahh, Windows...

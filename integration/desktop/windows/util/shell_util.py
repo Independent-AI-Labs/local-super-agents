@@ -43,8 +43,8 @@ def run_command(
         base_command = ""
 
         # Step 1: Activate oneAPI environment if requested
-        if activate_oneapi:
-            base_command += f'call "{ONE_API_PATH}" intel64 vs2022 ^&& '
+        # if activate_oneapi:
+        #     base_command += f'call "{ONE_API_PATH}" intel64 vs2022 ^&& '
 
         # Step 2: Activate Conda environment if requested
         if conda_env:

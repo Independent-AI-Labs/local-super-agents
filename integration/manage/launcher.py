@@ -1,11 +1,12 @@
 import os
 import time
 from multiprocessing import Process
+from pathlib import Path
 
 from integration.data.config import (
     OLLAMA_PATH, OLLAMA_LOG, WEBUI_LOG, LOGS_DIR, DEFAULT_ENV,
     OLLAMA_WORKING_DIR, OLLAMA_PORT, OPEN_WEBUI_PORT, OPEN_WEBUI_EXT_PORT,
-    SSL_CERT_FILE, SSL_KEY_FILE, CADDY_PATH, CADDYFILE_PATH, CADDY_LOG, OLLAMA_ENV
+    WEBUI_SSL_CERT_FILE, WEBUI_SSL_KEY_FILE, CADDY_PATH, CADDYFILE_PATH, CADDY_LOG, OLLAMA_ENV, INSTALL_PATH, TEMP_LOG, DEFAULT_MODELFILE
 )
 from integration.desktop.windows import windows_overlay
 from integration.desktop.windows.util.shell_util import run_command, is_port_open, kill_process
@@ -43,9 +44,23 @@ def start_ollama():
 
     # Not running, so start it
     command = f'"{OLLAMA_PATH}" serve'
-    post_init_script = os.path.abspath(os.path.join(os.getcwd(), "..", "..", "res", "envs", "ollama_env_setup.bat"))
+    post_init_script = fr"{INSTALL_PATH}\agents\res\integration\third_party\windows\envs\ollama_env_setup.bat"
     return run_command(command, OLLAMA_LOG, conda_env=OLLAMA_ENV, working_dir=OLLAMA_WORKING_DIR,
                        activate_oneapi=True, post_init_script=post_init_script, elevated_external=True)
+
+
+def download_default_model():
+    """
+    Check if the port is open, if not start ollama.exe serve.
+    """
+    while not is_port_open(OLLAMA_PORT):
+        time.sleep(.5)
+
+    # Not running, so start it
+    command = fr'"{OLLAMA_PATH}" create "16K-DeepSeek-R1:8B" -f "{INSTALL_PATH}\agents\res\modelfiles\deepseek-r1\8B-16K-12G.Modelfile"'
+    post_init_script = fr"{INSTALL_PATH}\agents\res\integration\third_party\windows\envs\ollama_env_setup.bat"
+    return run_command(command, TEMP_LOG, conda_env=OLLAMA_ENV, working_dir=OLLAMA_WORKING_DIR,
+                       activate_oneapi=True, post_init_script=post_init_script)
 
 
 def start_open_webui():
@@ -58,7 +73,7 @@ def start_open_webui():
         return None
 
     command = "open-webui serve --host 127.0.0.1"
-    post_init_script = os.path.abspath(os.path.join(os.getcwd(), "..", "..", "res", "envs", "open_webui_env_setup.bat"))
+    post_init_script = fr"{INSTALL_PATH}\agents\res\integration\third_party\windows\envs\open_webui_env_setup.bat"
     return run_command(command, WEBUI_LOG, conda_env=DEFAULT_ENV, post_init_script=post_init_script)
 
 
@@ -108,7 +123,7 @@ def start_proxy():
     caddyfile_content = f"""
 :{OPEN_WEBUI_EXT_PORT} {{
     bind 0.0.0.0
-    tls {SSL_CERT_FILE} {SSL_KEY_FILE} {{
+    tls {WEBUI_SSL_CERT_FILE} {WEBUI_SSL_KEY_FILE} {{
     }}
     reverse_proxy http://127.0.0.1:{OPEN_WEBUI_PORT}
 }}
@@ -138,11 +153,16 @@ def main():
 
     # Start ollama and open-webui. (They are later killed by stop_services().)
     start_ollama()
+    time.sleep(3)
+
+    if not os.path.exists(fr"{Path.home()}\.ollama\models\manifests\registry.ollama.ai\library\deepseek-r1"):
+        download_default_model()
+
     start_open_webui()
 
     # Start the proxy only if the SSL certificate exists.
     proxy_process = None
-    if os.path.exists(SSL_CERT_FILE):
+    if os.path.exists(WEBUI_SSL_CERT_FILE):
         # Wait until open-webui is running.
         while not is_port_open(OPEN_WEBUI_PORT):
             time.sleep(1)
@@ -152,13 +172,14 @@ def main():
         # Main loop: simply wait until a keyboard interrupt is received.
         while True:
             # Optionally, you can poll proxy_process to see if it has exited unexpectedly.
-            if proxy_process:
+            if proxy_process is not None:
                 proxy_process.poll()
             time.sleep(1)
     except KeyboardInterrupt:
         print("\n[INFO] KeyboardInterrupt received. Terminating processes...")
         safe_terminate(overlay_process, "Windows Overlay")
-        safe_terminate(proxy_process, "Caddy Proxy")
+        if proxy_process is not None:
+            safe_terminate(proxy_process, "Caddy Proxy")
         print("[INFO] Exiting launcher...")
     finally:
         # In addition, call stop_services() to kill any lingering processes.

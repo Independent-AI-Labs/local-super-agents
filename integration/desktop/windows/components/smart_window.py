@@ -6,6 +6,7 @@ import win32con
 import win32gui
 from pydantic import BaseModel, Field, PrivateAttr
 
+from integration.data.config import INSTALL_PATH
 from integration.desktop.models.desktop_target import DesktopTarget
 from integration.desktop.windows.action_manager import ActionManager
 from integration.desktop.windows.util.animation_util import spring_animation, await_next_frame_if_needed
@@ -341,7 +342,7 @@ class SmartWindow(BaseModel):
             x=mouse_x - 32,
             y=mouse_y - 32,
             description="UserTarget",
-            icon_path="..\\..\\res\\img\\target.gif"
+            icon_path=rf"{INSTALL_PATH}\agents\res\integration\graphics\ui\target.gif"
         )
         self.action_manager.action_targets_dequeue.append(new_target)
         return new_target

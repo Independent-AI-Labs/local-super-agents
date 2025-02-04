@@ -5,10 +5,11 @@ echo.
 
 :: Unzip the pre-requisites.
 echo Extracting pre-requisite files...
-if exist "%install_path%\agents\integration\res\third_party\windows\pre\pre.7z.001" (
-    "%ProgramFiles%\7-Zip\7z.exe" x "%install_path%\agents\integration\res\third_party\windows\pre\pre.7z.001" -o"%install_path%\agents\integration\res\third_party\windows\pre" -y
+if exist "%install_path%\agents\res\integration\third_party\windows\pre\pre.7z" (
+    "%ProgramFiles%\7-Zip\7z.exe" x "%install_path%\agents\res\integration\third_party\windows\pre\pre.7z" -o"%install_path%\agents\res\integration\third_party\windows\pre" -y
+    ren "%install_path%\agents\res\integration\third_party\windows\pre\pre.7z.dir" "pre"
     if %errorlevel% neq 0 (
-        echo [ERROR] Failed to extract pre-requisite packages pre.7z.001-00X.
+        echo [ERROR] Failed to extract pre-requisite packages pre.7z.
         pause
         exit /b
     )
@@ -21,7 +22,7 @@ if exist "%install_path%\agents\integration\res\third_party\windows\pre\pre.7z.0
 echo.
 
 :: Define the path to the extracted installers
-set "PRE_PATH=%install_path%\agents\integration\res\third_party\windows\pre"
+set "PRE_PATH=%install_path%\agents\res\integration\third_party\windows\pre\pre"
 
 :: Install Visual Studio Build Tools
 echo Installing Visual Studio Build Tools...
@@ -38,7 +39,7 @@ echo.
 
 :: Install Anaconda
 echo Installing Anaconda...
-"%PRE_PATH%\Anaconda3-2024.10-1-Windows-x86_64.exe" /InstallationType=JustMe /RegisterPython=0 /S /D=%install_path%\tools\Miniconda3
+"%PRE_PATH%\Anaconda3-2024.10-1-Windows-x86_64.exe" /InstallationType=JustMe /RegisterPython=0 /S /D=%install_path%\tools\miniconda3
 echo [OK] Anaconda installed.
 echo.
 
@@ -51,6 +52,8 @@ echo.
 :: Remove installer files
 echo Cleaning up installation files...
 del /Q "%PRE_PATH%\*.exe"
+del /Q "%PRE_PATH%\pre"
+del /Q "%install_path%\agents\res\integration\third_party\windows\pre\pre.7z"
 echo [OK] Installer files removed.
 echo.
 

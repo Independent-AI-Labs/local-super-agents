@@ -1,13 +1,14 @@
 #
 # Example usage
 #
+from integration.data.config import INSTALL_PATH
 from integration.desktop.models.desktop_action import DesktopAction
 
 # Create the DesktopAction instances
 ACT_WATCH_TARGET = DesktopAction(
     uid="watch_target",
     name="Watch Target",
-    icon_path="..\\..\\res\\img\\eye_color.png",
+    icon_path=rf"{INSTALL_PATH}\agents\res\integration\graphics\ui\eye_color.png",
     color=(187, 77, 235),
     shortcut_key="w",
     function=None  # Will be set to the manager method, or used externally
@@ -16,7 +17,7 @@ ACT_WATCH_TARGET = DesktopAction(
 ACT_OBSCURE_TARGET = DesktopAction(
     uid="obscure_target",
     name="Obscure Target",
-    icon_path="..\\..\\res\\img\\eye_closed.png",
+    icon_path=rf"{INSTALL_PATH}\agents\res\integration\graphics\ui\eye_closed.png",
     color=(187, 77, 235),
     shortcut_key="!w",
     function=None
@@ -25,7 +26,7 @@ ACT_OBSCURE_TARGET = DesktopAction(
 ACT_ENGAGE_TARGET = DesktopAction(
     uid="engage_target",
     name="Engage Target",
-    icon_path="..\\..\\res\\img\\reach.png",
+    icon_path=rf"{INSTALL_PATH}\agents\res\integration\graphics\ui\reach.png",
     color=(235, 77, 77),
     shortcut_key="e",
     function=None
@@ -34,7 +35,7 @@ ACT_ENGAGE_TARGET = DesktopAction(
 ACT_DISENGAGE_TARGET = DesktopAction(
     uid="disengage_target",
     name="Disengage Target",
-    icon_path="..\\..\\res\\img\\reach_over.png",
+    icon_path=rf"{INSTALL_PATH}\agents\res\integration\graphics\ui\reach_over.png",
     color=(235, 77, 77),
     shortcut_key="!e",
     function=None
