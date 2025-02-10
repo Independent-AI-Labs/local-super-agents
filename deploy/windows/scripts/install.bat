@@ -256,7 +256,7 @@ powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateS
 
 echo.
 echo Shortcuts created. Run the AI Services as Admin before launching the AI Assistant!
-echo This is will be replaced by an automated Windows service in the next release.
+echo This will be replaced by an automated Windows service in the next release.
 echo.
 pause
 

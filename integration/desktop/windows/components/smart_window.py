@@ -45,7 +45,7 @@ class SmartWindow(BaseModel):
     ctrl_threshold: int = Field(120, description="Number of frames CTRL has to be pressed to move order the window")
     spring_constant: float = Field(0.04, description="Strength of the spring pull in the window-follow animation")
     damping: float = Field(0.2, description="How quickly the velocity slows (0 < damping < 1 for typical usage)")
-    idle_movement_timeout: float = Field(320.0, description="Seconds of idle before moving the window closer to the mouse")
+    idle_movement_timeout: float = Field(3200.0, description="Seconds of idle before automatically moving the window closer to the mouse")
     frame_time: float = Field(1 / 145.0, description="Animation loop sleep interval in seconds")
 
     # Control states

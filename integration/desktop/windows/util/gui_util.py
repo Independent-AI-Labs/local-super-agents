@@ -9,6 +9,7 @@ import win32api
 import win32clipboard
 import win32con
 import win32gui
+import win32process
 
 from integration.desktop.models.icon_window_data import IconWindowData
 from integration.desktop.models.text_window_data import TextWindowData
@@ -24,7 +25,7 @@ from integration.desktop.windows.util.win_constants import (
     LASTINPUTINFO,
     user32,
     BLENDFUNCTION,
-    get_mouse_pos,
+    get_mouse_pos, EnumWindowsProc,
 )
 
 
@@ -153,6 +154,21 @@ def find_window_by_title(search_title: str) -> list[int]:
 
     win32gui.EnumWindows(callback, results)
     return results
+
+
+def rename_process_window(webui_pid, title):
+    """Callback function for EnumWindows to check each window."""
+
+    def foreach_window(hwnd, lParam):
+        if win32gui.IsWindowVisible(hwnd):
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            if pid == webui_pid:
+                # Found the window; set its title
+                win32gui.SetWindowText(hwnd, title)
+                return False  # Stop enumeration
+        return True  # Continue enumeration
+
+    win32gui.EnumWindows(EnumWindowsProc(foreach_window), 0)
 
 
 def wnd_proc(hwnd: int, msg: int, wparam: int, lparam: int) -> int:

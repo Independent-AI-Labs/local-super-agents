@@ -14,7 +14,7 @@ from integration.desktop.windows.action_manager import ActionManager
 from integration.desktop.windows.components.smart_window import SmartWindow
 from integration.desktop.windows.user.actions import ACTION_PAIRS, ACTIONS
 from integration.desktop.windows.util.animation_util import cleanup_draw_resources, draw_text_line_with_animation
-from integration.desktop.windows.util.gui_util import create_icon_window, create_text_window, sleep_eyes_open
+from integration.desktop.windows.util.gui_util import create_icon_window, create_text_window, sleep_eyes_open, rename_process_window
 from integration.desktop.windows.util.shell_util import is_port_open
 from integration.desktop.windows.util.win_constants import get_mouse_pos
 
@@ -186,7 +186,7 @@ def init():
         startupinfo.wShowWindow = SW_SHOWMINIMIZED
         # 1) Launch Chromium or Brave in "app mode"
 
-        subprocess.Popen(
+        process = subprocess.Popen(
             [
                 CHROME_PATH,
                 "--disable-gpu",
@@ -196,6 +196,7 @@ def init():
                 "--no-default-browser-check",
                 "--disable-notifications",
                 "--disable-infobars",
+                "--window-name=OPENWEBUI",
                 "--kiosk"
             ],
             startupinfo=startupinfo
@@ -203,7 +204,9 @@ def init():
 
         sleep_eyes_open(2)
 
-        OPEN_WEBUI_WINDOW = SmartWindow("Open WebUI")
+        rename_process_window(process.pid, "OPENWEBUI")
+
+        OPEN_WEBUI_WINDOW = SmartWindow("OPENWEBUI")
         OPEN_WEBUI_WINDOW.action_manager = ACTION_MANAGER
         print("[INFO] Attached to Open WebUI window!")
 

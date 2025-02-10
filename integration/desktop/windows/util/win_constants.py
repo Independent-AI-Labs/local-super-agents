@@ -179,6 +179,13 @@ FontStyleStrikeout = 8
 FR_PRIVATE = 0x10  # Load the font as private
 FR_NOT_ENUM = 0x20  # Do not add the font to the system enumeration
 
+# Define the callback function type
+EnumWindowsProc = ctypes.WINFUNCTYPE(
+    wintypes.BOOL,
+    wintypes.HWND,
+    wintypes.LPARAM
+)
+
 
 def list_available_fonts():
     installed_fonts = []

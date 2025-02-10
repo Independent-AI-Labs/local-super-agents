@@ -1,0 +1,3 @@
+[submodule "integration/pipelines"]
+	path = integration/pipelines
+	url = git@github.com:Independent-AI-Labs/lsa-pipelines.git
