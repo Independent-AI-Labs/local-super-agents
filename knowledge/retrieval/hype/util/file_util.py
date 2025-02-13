@@ -8,9 +8,9 @@ from typing import Tuple, List
 import PyPDF2
 import docx
 
-from hype.hype.data.file_type_support import TEXT_BASED_EXTENSIONS
-from hype.hype.data.models import FileNode
-from hype.hype.indexing.line_indexing import extract_text_and_line_indices
+from retrieval.hype.data.file_type_support import TEXT_BASED_EXTENSIONS
+from retrieval.hype.data.models import FileNode
+from retrieval.hype.indexing.line_indexing import extract_text_and_line_indices
 
 
 def build_file_tree(directory: str) -> FileNode:

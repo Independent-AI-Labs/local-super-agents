@@ -11,12 +11,12 @@ from multiprocessing import Manager, Queue
 
 import psutil
 
-from hype.hype.data.models import UnifiedSearchResult, SearchTerm
-from hype.hype.indexing.structured_data_mapper import execute_memory_managed_block_processing_threads
-from hype.hype.util.file_util import build_file_tree, extract_file_content, load_offsets, categorize_files, read_mmap
-from hype.hype.util.search_util import build_automaton, aho_corasick_match, preprocess_search_term_list, parse_search_terms
+from retrieval.hype.data.models import UnifiedSearchResult, SearchTerm
+from retrieval.hype.indexing.structured_data_mapper import execute_memory_managed_block_processing_threads
+from retrieval.hype.util.file_util import build_file_tree, extract_file_content, load_offsets, categorize_files, read_mmap
+from retrieval.hype.util.search_util import build_automaton, aho_corasick_match, preprocess_search_term_list, parse_search_terms
 
-from hype.hype.util.search_result_util import (
+from retrieval.hype.util.search_result_util import (
     collect_and_merge_results,
     build_search_result_for_file,
     search_file, process_structured_matches

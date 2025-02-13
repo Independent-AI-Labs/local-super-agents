@@ -12,7 +12,7 @@ import psutil
 
 from tabulate import tabulate
 
-from hype.hype.data.models import UnifiedSearchResult
+from retrieval.hype.data.models import UnifiedSearchResult
 
 
 def deploy_test_resources():

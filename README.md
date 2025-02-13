@@ -1,4 +1,4 @@
-# Local **Super-Agents**: ***Secure** Practical AGI for the **Real World***
+# Local **Super-Agents**: ***Secure** Practical AMI for the **Real World***
 
 ![](https://github.com/Independent-AI-Labs/local-super-agents/blob/main/res/docs/built_on.png)
 

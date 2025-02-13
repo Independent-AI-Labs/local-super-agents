@@ -13,11 +13,11 @@ from typing import List, Dict, Any, Tuple
 
 import psutil
 
-from hype.hype.search.file_search import bulk_search_files, search_structured_data, search_structured_data_batched
-from hype.hype.indexing.structured_data_mapper import split_structured_data_file, index_structured_data_batched, DEFAULT_ITEM_BREAK_SEQUENCE_STR
+from retrieval.hype.search.file_search import bulk_search_files, search_structured_data, search_structured_data_batched
+from retrieval.hype.indexing.structured_data_mapper import split_structured_data_file, index_structured_data_batched, DEFAULT_ITEM_BREAK_SEQUENCE_STR
 
-from hype.hype.util.search_util import extract_headers, compile_patterns
-from hype.tests.util import deploy_test_resources, check_system_specs, print_search_results
+from retrieval.hype.util.search_util import extract_headers, compile_patterns
+from retrieval.tests.util import deploy_test_resources, check_system_specs, print_search_results
 
 if not os.path.exists(os.path.join("res", "test_resources")):
     deploy_test_resources()

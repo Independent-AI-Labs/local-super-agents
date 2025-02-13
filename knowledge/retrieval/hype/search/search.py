@@ -2,9 +2,9 @@ from typing import List, Optional, Tuple
 
 from spellchecker import SpellChecker
 
-from hype.hype.search.file_search import search_structured_data
-from hype.hype.data.models import UnifiedSearchResult
-from hype.hype.util.search_util import find_candidate_word_clusters
+from retrieval.hype.search.file_search import search_structured_data
+from retrieval.hype.data.models import UnifiedSearchResult
+from retrieval.hype.util.search_util import find_candidate_word_clusters
 
 
 # TODO 'AND' searching.

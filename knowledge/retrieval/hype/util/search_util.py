@@ -15,8 +15,8 @@ from nltk.corpus import stopwords
 
 from spellchecker import SpellChecker
 
-from hype.hype.data.models import SearchTerm, UnifiedSearchResult
-from hype.hype.util.text_util import generate_ngrams
+from retrieval.hype.data.models import SearchTerm, UnifiedSearchResult
+from retrieval.hype.util.text_util import generate_ngrams
 
 SPELLCHECKER = None
 

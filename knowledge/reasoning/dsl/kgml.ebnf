@@ -1,0 +1,77 @@
+(*
+  KGML: Knowledge Graph Manipulation Language - A simplified high-level DSL for manipulating a Reasoning Knowledge Graph.
+  Reserved command keywords end with "►". Control blocks are defined between an opening keyword and a closing "◄".
+
+  Commands:
+    • C►, ◄  = Create a NODE or LINK.
+    • U►, ◄  = Update a NODE or LINK.
+    • D►, ◄  = Delete a NODE or LINK.
+    • E►, ◄  = Evaluate a NODE.
+    • N►, ◄  = Navigate the Knowledge Graph (optionally with a timeout).
+
+  Control Blocks:
+    • IF►, ELIF►, ELSE►, ◄ = Conditional execution blocks.
+    • LOOP►, ◄ = Loop blocks.
+*)
+
+(* A complete KGML program is a sequence of statements. *)
+program         = { statement } ;
+
+(* A statement can be either a command (single-line) or a control structure (with a nested block). *)
+statement       = command | control ;
+
+(* ------------------------------------------------------------------------- *)
+(* Command Statements                                                       *)
+(* ------------------------------------------------------------------------- *)
+command         = create_command
+                | update_command
+                | delete_command
+                | evaluate_command
+                | navigate_command ;
+
+create_command  = "C►" , ws , entity_type , ws , uid , ws , instruction , ws, "◄";
+update_command  = "U►" , ws , entity_type , ws , uid , ws , instruction , ws, "◄";
+delete_command  = "D►" , ws , entity_type , ws , uid , ws , instruction , ws, "◄";
+evaluate_command= "E►" , ws , entity_type , ws , uid , ws , instruction , ws, "◄";
+navigate_command= "N►" , ws , [ timeout , ws ] , instruction , ws, "◄";
+
+entity_type     = "NODE" | "LINK" ;
+uid             = identifier ;
+timeout         = number ;
+instruction     = string ;  (* A natural language instruction; may be quoted or unquoted. *)
+
+(* ------------------------------------------------------------------------- *)
+(* Control Structures                                                     *)
+(* ------------------------------------------------------------------------- *)
+control         = if_statement | loop_statement ;
+
+if_statement    = "IF►" , ws , command , newline ,
+                  block ,
+                  { elif_clause } ,
+                  [ else_clause ] ,
+                  "◄" , newline ;
+
+elif_clause     = "ELIF►" , ws , command , newline , block ;
+else_clause     = "ELSE►" , newline , block ;
+
+loop_statement  = "LOOP►" , ws , instruction , newline , block , "◄" , newline ;
+
+(* A block is a sequence of one or more statements (each on its own line). *)
+block           = { statement_line } ;
+statement_line  = statement , newline ;
+
+(* ------------------------------------------------------------------------- *)
+(* Lexical Rules                                                          *)
+(* ------------------------------------------------------------------------- *)
+ws              = { " " } ;
+newline         = "\n" ;
+identifier      = letter , { letter | digit | "_" } ;
+number          = digit , { digit } ;
+string          = ? any sequence of characters (optionally enclosed in quotes) ? ;
+letter          = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
+                | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
+                | "U" | "V" | "W" | "X" | "Y" | "Z"
+                | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j"
+                | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t"
+                | "u" | "v" | "w" | "x" | "y" | "z" ;
+digit           = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;

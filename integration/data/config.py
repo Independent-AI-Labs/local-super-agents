@@ -22,14 +22,15 @@ GDRIVE_CLIENT_SECRET = os.getenv('GDRIVE_CLIENT_SECRET', '')
 AGENTS_VM_ADDRESS = os.getenv('VM_ADDRESS', 'http://172.72.72.2')
 
 OLLAMA_PORT = os.getenv('OLLAMA_PORT', 11434)
+OLLAMA_BASE_URL = os.getenv('OPEN_WEBUI_BASE_URL', f'http://127.0.0.1:{OLLAMA_PORT}')
 OPEN_WEBUI_PORT = os.getenv('OPEN_WEBUI_PORT', 8080)
 OPEN_WEBUI_BASE_URL = os.getenv('OPEN_WEBUI_BASE_URL', f'http://127.0.0.1:{OPEN_WEBUI_PORT}')
 OPEN_WEBUI_EMAIL = os.getenv('OPEN_WEBUI_EMAIL', '')
 OPEN_WEBUI_PASSWORD = os.getenv('OPEN_WEBUI_PASSWORD', '')
 
 OPEN_WEBUI_EXT_PORT = 8443  # The external port to serve HTTPS traffic
-WEBUI_SSL_CERT_FILE = os.getenv('SSL_CERT_FILE', fr'{INSTALL_PATH}\certs\certificate.crt')
-WEBUI_SSL_KEY_FILE = os.getenv('SSL_KEY_FILE', fr'{INSTALL_PATH}\certs\private.key')
+WEBUI_SSL_CERT_FILE = os.getenv('WEBUI_SSL_CERT_FILE', fr'{INSTALL_PATH}\certs\certificate.crt')
+WEBUI_SSL_KEY_FILE = os.getenv('WEBUI_SSL_KEY_FILE', fr'{INSTALL_PATH}\certs\private.key')
 
 SEARXNG_BASE_URL = os.getenv('SEARXNG_BASE_URL', f'{AGENTS_VM_ADDRESS}:8888')
 CHAT_ID = os.getenv('CHAT_ID', '')

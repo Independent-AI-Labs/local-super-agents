@@ -4,7 +4,7 @@ from Cython.Build import cythonize
 ext_modules = [
     Extension(
         "line_indexing",
-        ["hype\\indexing\\line_indexing.pyx"],
+        ["retrieval\\indexing\\line_indexing.pyx"],
         language="c++",
     )
 ]
