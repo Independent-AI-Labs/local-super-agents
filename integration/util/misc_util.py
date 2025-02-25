@@ -56,39 +56,66 @@ ENV_EXCLUSION = []  # Define ENV_EXCLUSION as an empty list
 MAX_LIST_SIZE = 256  # Define maximum number of items to display in directory content
 
 
-def get_folder_path(folder_path: str = "") -> tuple[str, list[list[str]]]:  # Modified return type
+def select_directory(dir_path: str = "") -> str:
     """
-     Opens a folder dialog to select a folder and lists its content with file sizes.
-     Returns the selected folder path and a list of lists, each containing filename and size.
-     Limits the list size to MAX_LIST_SIZE.
-     """
-    # Validate parameter type
-    if not isinstance(folder_path, str):
-        raise TypeError("folder_path must be a string")
+    Opens a folder dialog to select a directory or uses the provided path based on conditions.
+    Returns the selected directory path or the provided path if conditions are met or dialog is cancelled.
+    """
+    if not isinstance(dir_path, str):
+        raise TypeError("dir_path must be a string")
 
-    dir_content_with_sizes = []
+    if any(var in os.environ for var in ENV_EXCLUSION) or sys.platform == "darwin":
+        return dir_path or ""  # Return provided path directly if conditions are met
+
     try:
-        # Check for environment variable conditions
-        if any(var in os.environ for var in ENV_EXCLUSION) or sys.platform == "darwin":
-            if os.path.isdir(folder_path):
-                items = list(os.scandir(folder_path))[:MAX_LIST_SIZE]  # Limit list size
-                for entry in items:
-                    size = entry.stat().st_size if entry.is_file() else 0  # Get size for files only
-                    formatted_size = format_size(size)
-                    dir_content_with_sizes.append([entry.name, formatted_size])  # Modified to list of lists
-            return folder_path or "", dir_content_with_sizes
-
         root = tk.Tk()
         root.withdraw()
         root.wm_attributes("-topmost", 1)
-        selected_folder = filedialog.askdirectory(initialdir=folder_path or ".")
+        selected_folder = filedialog.askdirectory(initialdir=dir_path or ".")
         root.destroy()
-        if selected_folder:
-            items = list(os.scandir(selected_folder))[:MAX_LIST_SIZE]  # Limit list size
-            for entry in items:
-                size = entry.stat().st_size if entry.is_file() else 0  # Get size for files only
-                formatted_size = format_size(size)
-                dir_content_with_sizes.append([entry.name, formatted_size])  # Modified to list of lists
-        return selected_folder or folder_path, dir_content_with_sizes
+        return selected_folder or dir_path  # Return selected folder or original dir_path if dialog cancelled
     except Exception as e:
         raise RuntimeError(f"Error initializing folder dialog: {e}") from e
+
+
+def list_directory_contents(dir_path: str, exclude_hidden: bool = True) -> list[list[str]]:
+    """
+    Lists the contents of the given directory with file sizes.
+    Returns a list of lists, each containing filename and size.
+    Limits the list size to MAX_LIST_SIZE and excludes hidden files based on exclude_hidden flag.
+    """
+    if not isinstance(dir_path, str):
+        raise TypeError("dir_path must be a string")
+    if not isinstance(exclude_hidden, bool):
+        raise TypeError("exclude_hidden must be a boolean")
+
+    dir_content_with_sizes = []
+    if os.path.isdir(dir_path):
+        try:
+            items = list(os.scandir(dir_path))[:MAX_LIST_SIZE]  # Limit list size
+            for entry in items:
+                if not exclude_hidden or not entry.name.startswith("."):  # Apply hidden file exclusion based on flag
+                    size = entry.stat().st_size if entry.is_file() else 0  # Get size for files only
+                    formatted_size = format_size(size)
+                    dir_content_with_sizes.append([entry.name, formatted_size])
+        except Exception as e:
+            raise RuntimeError(f"Error reading directory contents: {e}") from e
+    return dir_content_with_sizes
+
+
+def select_and_list_directory_contents(dir_path: str = "", exclude_hidden: bool = True) -> tuple[str, list[list[str]]]:
+    """
+    Wrapper function to select a directory and list its contents.
+    Returns the selected folder path and a list of lists, each containing filename and size.
+    """
+    if not isinstance(dir_path, str):
+        raise TypeError("dir_path must be a string")
+    if not isinstance(exclude_hidden, bool):
+        raise TypeError("exclude_hidden must be a boolean")
+
+    selected_folder = select_directory(dir_path)
+    if not os.path.isdir(selected_folder):  # Handle case where select_directory might return non-dir path if conditions are met or dialog is cancelled.
+        dir_contents = list_directory_contents(dir_path, exclude_hidden)  # Fallback to original dir_path if selection fails or conditions are met.
+        return dir_path, dir_contents
+    dir_contents = list_directory_contents(selected_folder, exclude_hidden)
+    return selected_folder, dir_contents

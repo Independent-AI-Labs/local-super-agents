@@ -121,7 +121,7 @@ def _convert_to_f16_gguf(input_dir_val, output_dir_val, output_console):
     return _run_subprocess_command(command_f16, output_console)
 
 
-def quantize_and_benchmark_process(input_dir_val, output_dir_val, quant_types_val, output_console, progress):
+def quantize_and_benchmark_process(input_dir_val, output_dir_val, quant_types_val, output_console, progress, status_update_callback):
     """
     Quantizes and benchmarks a model for different quantization types.
 
@@ -131,6 +131,7 @@ def quantize_and_benchmark_process(input_dir_val, output_dir_val, quant_types_va
         quant_types_val (list): List of quantization types to perform.
         output_console (gr.Textbox): Gradio Textbox for output.
         progress (gr.Progress): Progress bar.
+        status_update_callback (callable): Callback function for status updates.
     Returns:
         tuple: (output_console_text, new_results_data) - Console output and benchmark results data.
     """
@@ -269,6 +270,9 @@ def quantize_and_benchmark_process(input_dir_val, output_dir_val, quant_types_va
                     "Quality (%)": "ERROR",
                 }
                 new_results_data.append([output_file_path, quant_type] + list(benchmark_result_error.values()))
+
+        if status_update_callback:
+            status_update_callback(output_console_text)
 
     output_console.value = output_console_text
 
