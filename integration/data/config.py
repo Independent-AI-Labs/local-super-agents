@@ -52,6 +52,7 @@ CADDY_PATH = os.getenv('CADDY_PATH', fr'{INSTALL_PATH}\tools\caddy-win\caddy.exe
 CADDYFILE_PATH = os.getenv('CADDY_PATH', fr'{INSTALL_PATH}\tools\caddy-win\caddyfile')
 CHROME_PATH = os.getenv('CHROME_PATH', fr'{INSTALL_PATH}\tools\chrome-win\chrome-agents.exe')
 OLLAMA_PATH = os.getenv('OLLAMA_PATH', fr'{INSTALL_PATH}\agents\ollama\ollama.exe')
+LLAMACPP_IMATRIX_PATH = os.getenv('LLAMACPP_QUANTIZE_PATH', fr'{INSTALL_PATH}\build\llama.cpp\build\bin\Release\llama-imatrix.exe')
 LLAMACPP_QUANTIZE_PATH = os.getenv('LLAMACPP_QUANTIZE_PATH', fr'{INSTALL_PATH}\build\llama.cpp\build\bin\Release\llama-quantize.exe')
 OLLAMA_WORKING_DIR = os.getenv('OLLAMA_WORKING_DIR', fr'{INSTALL_PATH}\agents\ollama')
 LLAMACPP_WORKING_DIR = os.getenv('LLAMACPP_WORKING_DIR', fr'{INSTALL_PATH}\build\llama.cpp')

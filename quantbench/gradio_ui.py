@@ -153,7 +153,9 @@ class QuantBenchUI:
                 self.output_dir_content_data = contents  # Keep this updated if used elsewhere
                 return gr.update(value=contents)
             except Exception as e:
-                print(f"Error updating output directory content: {e}")
+                error_msg = f"Error updating output directory content: {e}"
+                print(error_msg)
+                gr.Warning(error_msg)
                 return gr.update()  # Return empty update to prevent errors in Gradio
         else:
             return gr.update()  # Return empty update if output_dir not initialized yet
@@ -199,6 +201,7 @@ class QuantBenchUI:
             print(traceback.format_exc())  # Still print full traceback to server console for debugging
             console_output += f"{error_str}\n"
             status_output = f"{error_str}"  # User friendly error for status
+            gr.Warning(error_str)
             return (
                 console_output,
                 gr.update(value=self.results_table_data),
@@ -207,6 +210,7 @@ class QuantBenchUI:
                 status_output,
             )  # Re-enable buttons and return error status
 
+        gr.Info("Quantization finished!")
         return (
             console_output,
             gr.update(value=unique_results_data),
@@ -235,11 +239,9 @@ class QuantBenchUI:
             gr.update(value="Processing..."),
         )
 
-        # TODO Why is this not called? - It is a callback function, it should be called inside `process_quantization` or `quantize_and_benchmark_process` if passed correctly.
+        # Why is this not called? - It is a callback function, it should be called inside `process_quantization` or `quantize_and_benchmark_process` if passed correctly.
         def status_update_callback(status_message):
             print(status_message)
-            self.update_output_directory()  # Although this is called, it is not returning and updating UI in `run_quantization` generator.
-            yield gr.update(value=status_message)  # This yield here is in wrong context, it should be called within `run_quantization`
 
         try:
             console_output = ""
@@ -269,6 +271,7 @@ class QuantBenchUI:
                 gr.update(value=status_output),  # Final status from process_quantization (should be "Finished." or error)
             )
 
+        # TODO Also display gradio Error messages.
         except ValueError as ve:  # Catch validation errors
             error_str_ui = f"Validation Error:\n{str(ve)}"
             yield (
@@ -278,6 +281,7 @@ class QuantBenchUI:
                 gr.update(value=self.results_table_data),
                 gr.update(value=f"{error_str_ui}"),  # Update status textbox with UI exception
             )
+            gr.Warning(error_str_ui)
         except OSError as ose:  # Catch OS directory creation errors
             error_str_ui = f"OS Error:\n{str(ose)}"
             yield (
@@ -287,6 +291,7 @@ class QuantBenchUI:
                 gr.update(value=self.results_table_data),
                 gr.update(value=f"{error_str_ui}"),  # Update status textbox with UI exception
             )
+            gr.Warning(error_str_ui)
         except Exception as e_ui:  # Catch any other UI related exceptions
             error_str_ui = f"UI Exception occurred:\n{str(e_ui)}"
             print(traceback.format_exc())  # Print UI traceback to server console
@@ -297,6 +302,7 @@ class QuantBenchUI:
                 gr.update(value=self.results_table_data),
                 gr.update(value=f"{error_str_ui}"),  # Update status textbox with UI exception
             )
+            gr.Warning(error_str_ui)
 
 
 if __name__ == "__main__":

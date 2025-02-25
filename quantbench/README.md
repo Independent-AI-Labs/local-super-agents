@@ -9,16 +9,12 @@ QuantBench is a user-friendly tool for quantizing and benchmarking Large Languag
 **Key Features:**
 
 * **Intuitive Gradio UI:** Simple and easy-to-use web interface for quantization and benchmarking.
-* **Input/Output Directory Selection:** Easily select directories for input models and output quantized models.
 * **Quantization Type Selection:** Supports various quantization types (determined by `get_available_quant_types` in `quantbench`).
-* **Quantization Process:**  Initiate model quantization with selected configurations.
 * **Output Console:** Real-time output console to monitor the quantization and benchmarking process.
 * **Benchmark Results Table:** Displays benchmark results in a structured table, including key metrics like quantization time (TTQ), size reduction, and performance indicators.
-* **Periodic Output Directory Content Update:**  Automatically updates the output directory content in the UI.
+* **Natural-Language Rule-Base Dataset Generation:** Can be used for benchmarking, imatrix quantization and fine-tuning.
 
-**Current Status: Work in Progress**
-
-🚧 **Benchmarking features are currently under development and being actively implemented.** 🚧
+🚧 **imatrix and benchmarking features are currently under development and being actively implemented.** 🚧
 
 The core quantization functionality is in place, allowing users to quantize models.  Benchmarking capabilities are being added to provide comprehensive performance evaluation of quantized models.
 
