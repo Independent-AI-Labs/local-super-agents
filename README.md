@@ -11,7 +11,7 @@ Privacy-first agentic framework with powerful reasoning & task automation capabi
 
 ### **✨ Latest Open-Source Language, Speech & Vision Models**
 
-- Via **Open WebUI**, **Ollama**, and **vLLM**
+- Via **Open WebUI**, **llama.cpp**, **Ollama**,  and **vLLM**
 
 ---
 
