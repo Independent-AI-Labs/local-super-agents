@@ -4,9 +4,10 @@ import os
 import onnx
 import tensorflow as tf
 import tf2onnx
+import torch
 from onnx2pytorch import ConvertModel
 from safetensors import safe_open
-from transformers import AutoConfig, AutoModel, AutoModelForCausalLM, Qwen2VLForConditionalGeneration
+from transformers import AutoConfig, AutoModelForCausalLM, Qwen2VLForConditionalGeneration
 
 from integration.data.config import LLAMACPP_WORKING_DIR
 from integration.util.misc_util import run_subprocess_command
@@ -95,32 +96,25 @@ def convert_tf_to_onnx(input_dir, output_path, fold_const=False, opset=11):
                 )
         elif isinstance(model, Qwen2VLForConditionalGeneration):
             # For non-Keras models, such as a transformers-based model.
-            # Infer input types from model layers.
-            input_types = []
-            for layer in model.layers:
-                if isinstance(layer, tf.keras.layers.InputLayer):
-                    input_types.append(layer.dtype)
+            # Determine input specifications based on the model's architecture.
+            input_ids = tf.TensorSpec((1, None), dtype=tf.int32, name="input_ids")
+            attention_mask = tf.TensorSpec((1, None), dtype=tf.int32, name="attention_mask")
+            pixel_values = tf.TensorSpec((1, 3, None, None), dtype=tf.float32, name="pixel_values")
 
-            # Define the input specifications based on the inferred types.
-            spec = []
-            if len(input_types) >= 3:
-                spec.append(tf.TensorSpec((None, None, 3, 224, 224), input_types[0], name="pixel_values"))
-                spec.append(tf.TensorSpec((None, None), input_types[1], name="input_ids"))
-                spec.append(tf.TensorSpec((None, None), input_types[2], name="attention_mask"))
+            spec = (input_ids, attention_mask, pixel_values)
 
-            if spec:
-                def wrapped_call(*args, **kwargs):
-                    # Convert inputs to concrete tensors with inferred types.
-                    def convert_to_tensor_with_type(tensor, dtype):
-                        return tf.convert_to_tensor(tensor, dtype=dtype)
+            def wrapped_call(input_ids_tensor, attention_mask_tensor, pixel_values_tensor, **kwargs):
+                # Convert SymbolicTensor to concrete tensor
+                input_ids = tf.convert_to_tensor(input_ids_tensor, dtype=tf.int32)
+                attention_mask = tf.convert_to_tensor(attention_mask_tensor, dtype=tf.int32)
+                pixel_values = tf.convert_to_tensor(pixel_values_tensor, dtype=tf.float32)
 
-                    converted_args = tf.nest.map_structure(convert_to_tensor_with_type, args, [input_types[0]] if len(input_types) > 0 else [])
-                    return model.call(*converted_args, **kwargs)
+                return model(input_ids=input_ids, attention_mask=attention_mask, pixel_values=pixel_values, **kwargs)
 
-                concrete_func = tf.function(wrapped_call).get_concrete_function(*spec)
-                model_proto, _ = tf2onnx.convert.from_function(
-                    concrete_func, input_signature=spec, output_path=output_path, **conversion_options
-                )
+            concrete_func = tf.function(wrapped_call).get_concrete_function(*spec)
+            model_proto, _ = tf2onnx.convert.from_function(
+                concrete_func, input_signature=spec, output_path=output_path, **conversion_options
+            )
         else:
             raise ValueError(f"Unsupported model type: {type(model)}")
 
@@ -169,13 +163,14 @@ def create_model(input_shape, input_dir):
             if "AutoModelForCausalLM" in auto_map:
                 model = AutoModelForCausalLM.from_pretrained(input_dir, config=auto_config)
                 return model
+
+            # Seems like they are using the same config.
             if auto_config.model_type == "qwen2_5_vl":
                 auto_config.architectures[0] = 'Qwen2_VLForConditionalGeneration'
                 auto_config.model_type = "qwen2_vl"
-            # Otherwise, try the generic AutoModel
-            model = AutoModel.from_pretrained(input_dir, config=auto_config)
-            if auto_config.model_type == "qwen2_vl":
-                pass
+
+            dtype = torch.float32
+            model = Qwen2VLForConditionalGeneration.from_pretrained(input_dir, torch_dtype=dtype, ignore_mismatched_sizes=True)
             return model
 
     # Fallback: create a dummy TensorFlow Keras model based on input_shape.

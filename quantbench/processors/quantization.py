@@ -77,7 +77,7 @@ class ONNXQuantizationProcessor(QuantizationProcessor):
 
     def process(self):
         yield from self._validate_inputs()
-        onnx_path = os.path.join(self.output_dir_val, f"{self.model_filename_base}.onnx")
+        onnx_path = os.path.join(*os.path.split(self.output_dir_val), f"{self.model_filename_base}.onnx")
 
         # Convert to ONNX
         ret_code_onnx, onnx_conversion_output = convert_tf_to_onnx(self.input_dir_val, onnx_path)
