@@ -1,5 +1,7 @@
 import os
+import subprocess
 import sys
+import threading
 import tkinter as tk
 from tkinter import filedialog
 
@@ -119,3 +121,34 @@ def select_and_list_directory_contents(dir_path: str = "", exclude_hidden: bool 
         return dir_path, dir_contents
     dir_contents = list_directory_contents(selected_folder, exclude_hidden)
     return selected_folder, dir_contents
+
+
+def run_subprocess_command(command):
+    """
+    Runs a subprocess command and returns its exit code and accumulated output.
+    """
+    output_lines = []
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    def read_stream(stream):
+        for line in iter(stream.readline, ''):
+            output_lines.append(line)
+        stream.close()
+
+    stdout_thread = threading.Thread(target=read_stream, args=(process.stdout,))
+    stderr_thread = threading.Thread(target=read_stream, args=(process.stderr,))
+    stdout_thread.start()
+    stderr_thread.start()
+    stdout_thread.join()
+    stderr_thread.join()
+    process.wait()
+
+    return process.returncode, ''.join(output_lines)

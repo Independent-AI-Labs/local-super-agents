@@ -4,7 +4,7 @@ import traceback
 import gradio as gr
 
 from integration.util.misc_util import select_and_list_directory_contents, list_directory_contents
-from quantbench.quantization import quantize_and_benchmark_process
+from quantbench.errors.quantization_error import QuantizationError
 
 
 def validate_inputs(input_dir_val, output_dir_val, quant_types_val):
@@ -66,52 +66,25 @@ def periodic_update_output_dir_content(output_dir_val: str):  # Receive output_d
         return gr.update()  # Return empty update if output_dir not initialized yet
 
 
-def process_quantization(input_dir_val, output_dir_val, quant_types_val, imatrix_val, output_format_val, progress, status_update_callback):
-    # Validate inputs using the utility function
-    validate_inputs(input_dir_val, output_dir_val, quant_types_val)
-
-    # Ensure output directory exists; exceptions are handled in run_quantization_benchmark
-    dir_creation_message = ensure_output_directory_exists(output_dir_val)
-    console_output = dir_creation_message
-    new_results_data_chunk = []
-
-    try:
-        # quantize_and_benchmark_process is now a generator
-        process_generator = quantize_and_benchmark_process(
-            input_dir_val, output_dir_val, quant_types_val, imatrix_val, output_format_val, progress, status_update_callback
-        )
-        for output_chunk in process_generator:
-            if isinstance(output_chunk, tuple):
-                # Assuming tuple is (console_output_chunk, new_results_data_chunk)
-                console_output_chunk, new_results_data_chunk = output_chunk
-                console_output += console_output_chunk
-            else:
-                # Assuming it's just a console output chunk
-                console_output += output_chunk
-        unique_results_data = remove_duplicate_results(new_results_data_chunk)
-    except Exception as e:
-        error_str = f"An error occurred during quantization:\n{str(e)}"
-        print(traceback.format_exc())  # Still print full traceback to server console for debugging
-        console_output += f"{error_str}\n"
-        status_output = f"{error_str}"  # User friendly error for status
-        gr.Warning(error_str)
-        return (
-            console_output,
-            None,
-            update_button_states(True),
-            update_button_states(True),
-            status_output,
-        )  # Re-enable buttons and return error status
-
-    gr.Info("Quantization finished!")
-    return (
-        console_output,
-        gr.update(value=unique_results_data),
-        update_button_states(True),
-        update_button_states(True),
-        "Finished.",
-    )  # Re-enable buttons, and finished status
-
 
 def update_output_dir_label(format_val: str):
-    return gr.update(label=f"Model Output Directory ({format_val})",)
+    return gr.update(label=f"Model Output Directory ({format_val})", )
+
+
+def calculate_file_size_and_percentage(original_size_bytes, quantized_size_bytes):
+    """Calculates file size in GB and percentage of original size."""
+    if original_size_bytes == 0:
+        return "0.00 GB", "0.00%"  # Avoid division by zero
+    quantized_size_gb = quantized_size_bytes / (1024 ** 3)
+    percentage_of_original = (quantized_size_bytes / original_size_bytes) * 100
+    return f"{quantized_size_gb:.2f} GB", f"{percentage_of_original:.2f}%"
+
+
+def handle_error(output_console_text, error_message):
+    """
+    Helper function to handle errors by yielding the console text and raising a QuantizationError.
+    """
+    output_console_text += error_message
+    yield output_console_text, []
+    raise QuantizationError(error_message)
+

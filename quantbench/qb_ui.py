@@ -1,12 +1,11 @@
-import os
 import traceback
 
 import gradio as gr
 
-from quantbench.util.quant_util import get_available_quant_types, SupportedFeatures
-from quantbench.util.ui_util import (
-    update_button_states, periodic_update_output_dir_content, update_input_directory, update_output_directory, process_quantization,
-    update_output_dir_label)
+from quantbench.qb_config import get_available_quant_types, SupportedFeatures
+from quantbench.qb_manager import start_process
+from quantbench.util.ui_util import (update_button_states, periodic_update_output_dir_content, update_input_directory, update_output_directory,
+                                     update_output_dir_label)
 
 
 # TODO It's OK to use this and not pydantic here, as this is not a data model?
@@ -82,8 +81,9 @@ class QuantBenchUI:
                             )
 
                     with gr.Row():
+                        # TODO Replace get_available_quant_types[0] with a full precision value based on the current model.
                         self.quant_types = gr.CheckboxGroup(
-                            label="Quantization Types", choices=get_available_quant_types(), value=["F16"]
+                            label="Quantization Types", choices=get_available_quant_types(), value=get_available_quant_types()[0]
                         )
                     with gr.Row():
                         with gr.Column():
@@ -148,7 +148,7 @@ class QuantBenchUI:
                 ],
             )
 
-            self.timer = gr.Timer(value=5, active=True)  # Create Timer instance and store it in self.timer
+            self.timer = gr.Timer(value=3, active=True)  # Create Timer instance and store it in self.timer
             self.timer.tick(  # Use .tick event listener on the Timer instance
                 fn=periodic_update_output_dir_content,
                 inputs=self.output_dir,  # Pass self.output_dir as input
@@ -179,8 +179,8 @@ class QuantBenchUI:
         try:
             console_output = ""
             # Pass the status_update_callback to process_quantization as positional argument
-            process_output = process_quantization(
-                input_dir_val, output_dir_val, quant_types_val, imatrix_val, output_format_val, self.progress, status_update_callback
+            process_output = start_process(
+                input_dir_val, output_dir_val, quant_types_val, imatrix_val, output_format_val, self.progress, status_update_callback, gr
             )
 
             (
