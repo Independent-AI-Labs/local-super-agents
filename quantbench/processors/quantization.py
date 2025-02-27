@@ -5,7 +5,7 @@ from safetensors import safe_open
 
 from quantbench.errors.quantization_error import QuantizationError
 from quantbench.processors.quantization_processor import QuantizationProcessor
-from quantbench.qb_config import FP16_QUANT_TYPE, SupportedFeatures, INPUT_MODEL_FILE_EXTENSION
+from quantbench.qb_config import SupportedFeatures, INPUT_MODEL_FILE_EXTENSION
 from quantbench.util.convert_util import convert_onnx_to_pytorch, convert_tf_to_onnx
 from quantbench.util.quant_util import get_gguf_file_path, create_benchmark_result, quantize_pytorch_gptq
 from quantbench.util.ui_util import calculate_file_size_and_percentage
@@ -22,18 +22,25 @@ class GGUFQuantizationProcessor(QuantizationProcessor):
     def process(self):
         yield from self._validate_inputs()
 
-        f16_gguf_path = get_gguf_file_path(self.output_dir_val, self.model_filename_base, FP16_QUANT_TYPE)
+        full_precision_gguf_path = None
+        for fp_quant_type in SupportedFeatures.FP_QUANT_TYPES:
+            temp_path = get_gguf_file_path(self.output_dir_val, self.model_filename_base, fp_quant_type)
+            if os.path.exists(temp_path):
+                full_precision_gguf_path = temp_path
+                break
+
+        if full_precision_gguf_path is None:
+            full_precision_gguf_path = get_gguf_file_path(self.output_dir_val, self.model_filename_base, SupportedFeatures.HIGHEST_FP_QUANT_TYPE)
+            self.output_console_text += f"Warning: No full precision GGUF file found for types {SupportedFeatures.FP_QUANT_TYPES}. Creating a new one with {SupportedFeatures.HIGHEST_FP_QUANT_TYPE}\n"
+            yield self.output_console_text, []
 
         # imatrix logic
-        imatrix_path = yield from self._handle_imatrix(f16_gguf_path)
+        imatrix_path = yield from self._handle_imatrix(full_precision_gguf_path)
 
         quant_types_to_process = self.valid_quant_types_val[:]
-        if FP16_QUANT_TYPE in quant_types_to_process:
-            quant_types_to_process.remove(FP16_QUANT_TYPE)
-            quant_types_to_process.insert(0, FP16_QUANT_TYPE)
 
         for quant_type in self.progress.tqdm(quant_types_to_process, desc="Quantizing models..."):
-            yield from self._process_quant_type(quant_type, f16_gguf_path, imatrix_path)
+            yield from self._process_quant_type(quant_type, full_precision_gguf_path, imatrix_path)
 
         yield self.output_console_text, self.new_results_data
 
@@ -98,7 +105,7 @@ class GPTQQuantizationProcessor(ONNXQuantizationProcessor):
         # TODO: Add benchmarking logic here
         quantized_size_bytes = os.path.getsize(quantized_model_path)
 
-        quantized_size_gb, quantized_size_percent = calculate_file_size_and_percentage(self.f16_size_bytes, quantized_size_bytes)  # need the f16 size
+        quantized_size_gb, quantized_size_percent = calculate_file_size_and_percentage(self.fp_size_bytes, quantized_size_bytes)  # need the full-precision size
 
         benchmark_result = create_benchmark_result("N/A", quantized_size_gb, quantized_size_percent)
 
@@ -140,10 +147,10 @@ def create_quantization_processor(output_format_val, input_dir_val, output_dir_v
     else:
         raise ValueError(f"Unsupported output format: {output_format_val}")
 
+
 def quantize_and_benchmark_process(input_dir_val, output_dir_val, quant_types_val, imatrix_val, output_format_val, progress, status_update_callback):
     """
     Router function that selects and runs a quantization processor based on the output format.
     """
     processor = create_quantization_processor(output_format_val, input_dir_val, output_dir_val, quant_types_val, imatrix_val, progress, status_update_callback)
     yield from processor.process()
-

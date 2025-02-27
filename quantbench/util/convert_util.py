@@ -13,11 +13,11 @@ from integration.util.misc_util import run_subprocess_command
 from quantbench.qb_config import CONVERT_HF_TO_GGUF_SCRIPT, INPUT_MODEL_FILE_EXTENSION
 
 
-def convert_to_f16_gguf(input_dir_val, output_dir_val):
+def convert_to_full_precision_gguf(input_dir_val, output_dir_val):
     convert_hf_to_gguf_path = os.path.join(LLAMACPP_WORKING_DIR, CONVERT_HF_TO_GGUF_SCRIPT)
-    command_f16 = ["python", convert_hf_to_gguf_path, input_dir_val, "--outfile", output_dir_val]
-    output_console_text = f"Running command: {' '.join(command_f16)}\n"
-    ret_code, cmd_output = run_subprocess_command(command_f16)
+    command_fp = ["python", convert_hf_to_gguf_path, input_dir_val, "--outfile", output_dir_val]
+    output_console_text = f"Running command: {' '.join(command_fp)}\n"
+    ret_code, cmd_output = run_subprocess_command(command_fp)
     output_console_text += cmd_output
     return ret_code, output_console_text
 

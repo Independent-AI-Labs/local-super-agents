@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 
 from quantbench.errors.quantization_error import QuantizationError
 from quantbench.qb_config import get_available_quant_types, INPUT_MODEL_FILE_EXTENSION, IMATRIX_DATASET_FILE, SupportedFeatures, IMATRIX_CUSTOM_FILE_NAME, \
-    FP16_QUANT_TYPE, IMATRIX_FILE_NAME
-from quantbench.util.convert_util import convert_to_f16_gguf
+    IMATRIX_FILE_NAME
+from quantbench.util.convert_util import convert_to_full_precision_gguf
 from quantbench.util.quant_util import generate_imatrix, get_time_to_quantize, create_benchmark_result, get_gguf_file_path, quantize_model
 from quantbench.util.ui_util import handle_error, calculate_file_size_and_percentage
 
@@ -28,7 +28,7 @@ class QuantizationProcessor(ABC):
         self.valid_quant_types_val = [q for q in self.quant_types_val if q in self.available_quants]
         self.model_filename_base = os.path.split(self.input_dir_val)[-1]
         self.original_size_bytes = 0
-        self.f16_size_bytes = 0
+        self.fp_size_bytes = 0
 
     @abstractmethod
     def process(self):
@@ -65,20 +65,20 @@ class QuantizationProcessor(ABC):
         yield self.output_console_text, []
         self.original_size_bytes = os.path.getsize(self.input_file_path)
 
-    def _handle_imatrix(self, f16_gguf_path):
+    def _handle_imatrix(self, fp_gguf_path):
         imatrix_path = None
         if self.imatrix_val != SupportedFeatures.IMATRIX_OPTIONS[0]:
             train_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), IMATRIX_DATASET_FILE)
             if self.imatrix_val == SupportedFeatures.IMATRIX_OPTIONS[2]:
                 imatrix_path = os.path.join(self.output_dir_val, IMATRIX_CUSTOM_FILE_NAME)
                 if not os.path.exists(imatrix_path):
-                    if not os.path.exists(f16_gguf_path):
-                        ret_code_f16, f16_conversion_output = convert_to_f16_gguf(self.input_dir_val, self.output_dir_val)
-                        self.output_console_text += f16_conversion_output
+                    if not os.path.exists(fp_gguf_path):
+                        ret_code_fp, fp_conversion_output = convert_to_full_precision_gguf(self.input_dir_val, self.output_dir_val)
+                        self.output_console_text += fp_conversion_output
                         yield self.output_console_text, []
-                        if ret_code_f16 != 0:
-                            raise QuantizationError("Error during F16 conversion. See console output for details.\n")
-                    ret_code_imatrix, imatrix_output = generate_imatrix(f16_gguf_path, train_data_path, imatrix_path)
+                        if ret_code_fp != 0:
+                            raise QuantizationError("Error during full-precision conversion. See console output for details.\n")
+                    ret_code_imatrix, imatrix_output = generate_imatrix(fp_gguf_path, train_data_path, imatrix_path)
                     self.output_console_text += imatrix_output
                     yield self.output_console_text, []
                     if ret_code_imatrix != 0:
@@ -94,47 +94,45 @@ class QuantizationProcessor(ABC):
                 yield self.output_console_text, []
         return imatrix_path
 
-    def _process_quant_type(self, quant_type, f16_gguf_path, imatrix_path):
-        if quant_type == FP16_QUANT_TYPE:
-            f16_start_time = time.time()
-            if not os.path.exists(f16_gguf_path):
-                ret_code_f16, f16_conversion_output = convert_to_f16_gguf(self.input_dir_val, self.output_dir_val)
-                self.output_console_text += f16_conversion_output
-                yield self.output_console_text, []
-                if ret_code_f16 != 0:
-                    raise QuantizationError("Error during F16 conversion. See console output for details.\n")
-            else:
-                self.output_console_text += f"F16 GGUF already exists: {f16_gguf_path}\n"
-                yield self.output_console_text, []
+    def _process_quant_type(self, quant_type, full_precision_gguf_path, imatrix_path):
+        if not os.path.exists(full_precision_gguf_path):
+            fp_start_time = time.time()
+            ret_code_fp, fp_conversion_output = convert_to_full_precision_gguf(self.input_dir_val, self.output_dir_val)
+            self.output_console_text += fp_conversion_output
+            yield self.output_console_text, []
+            if ret_code_fp != 0:
+                raise QuantizationError("Error during full-precision conversion. See console output for details.\n")
 
-            f16_end_time = time.time()
-            ttq_f16 = get_time_to_quantize(f16_start_time, f16_end_time)
-            self.f16_size_bytes = os.path.getsize(f16_gguf_path)
-            f16_size_gb, f16_size_percent = calculate_file_size_and_percentage(self.f16_size_bytes, self.f16_size_bytes)
-            benchmark_result_f16 = create_benchmark_result(ttq_f16, f16_size_gb, f16_size_percent)
-            self.new_results_data.append([f16_gguf_path, FP16_QUANT_TYPE] + list(benchmark_result_f16.values()))
+            fp_end_time = time.time()
+            ttq_fp = get_time_to_quantize(fp_start_time, fp_end_time)
+            self.fp_size_bytes = os.path.getsize(full_precision_gguf_path)
+            fp_size_gb, fp_size_percent = calculate_file_size_and_percentage(self.fp_size_bytes, self.fp_size_bytes)
+            benchmark_result_fp = create_benchmark_result(ttq_fp, fp_size_gb, fp_size_percent)
+            self.new_results_data.append([full_precision_gguf_path, FP_QUANT_TYPE] + list(benchmark_result_fp.values()))
         else:
+            self.output_console_text += f"full-precision GGUF already exists: {full_precision_gguf_path}\n"
+            yield self.output_console_text, []
+
             output_file_path = get_gguf_file_path(self.output_dir_val, self.model_filename_base, quant_type)
             if os.path.exists(output_file_path):
                 quantized_size_bytes = os.path.getsize(output_file_path)
-                quantized_size_gb, quantized_size_percent = calculate_file_size_and_percentage(self.f16_size_bytes, quantized_size_bytes)
+                quantized_size_gb, quantized_size_percent = calculate_file_size_and_percentage(self.fp_size_bytes, quantized_size_bytes)
                 benchmark_result = create_benchmark_result("N/A", quantized_size_gb, quantized_size_percent)
                 self.output_console_text += f"Skipping {quant_type} (already exists): {output_file_path}\n"
                 yield self.output_console_text, []
                 self.new_results_data.append([output_file_path, quant_type] + list(benchmark_result.values()))
                 return
             start_time = time.time()
-            ret_code, quantization_output = quantize_model(f16_gguf_path, output_file_path, quant_type, imatrix_path)
+            ret_code, quantization_output = quantize_model(full_precision_gguf_path, output_file_path, quant_type, imatrix_path)
             self.output_console_text += quantization_output
             yield self.output_console_text, []
             if ret_code == 0:
                 end_time = time.time()
                 ttq = get_time_to_quantize(start_time, end_time)
                 quantized_size_bytes = os.path.getsize(output_file_path)
-                quantized_size_gb, quantized_size_percent = calculate_file_size_and_percentage(self.f16_size_bytes, quantized_size_bytes)
+                quantized_size_gb, quantized_size_percent = calculate_file_size_and_percentage(self.fp_size_bytes, quantized_size_bytes)
                 benchmark_result = create_benchmark_result(ttq, quantized_size_gb, quantized_size_percent)
                 self.new_results_data.append([output_file_path, quant_type] + list(benchmark_result.values()))
             else:
                 self.new_results_data.append([output_file_path, quant_type] + list(create_benchmark_result("ERROR", "ERROR", "ERROR", error=True).values()))
                 raise QuantizationError("Unspecified error during quantization.\n")
-

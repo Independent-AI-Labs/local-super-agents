@@ -83,7 +83,7 @@ class QuantBenchUI:
                     with gr.Row():
                         # TODO Replace get_available_quant_types[0] with a full precision value based on the current model.
                         self.quant_types = gr.CheckboxGroup(
-                            label="Quantization Types", choices=get_available_quant_types(), value=get_available_quant_types()[0]
+                            label="Quantization Types", choices=get_available_quant_types(), value=get_available_quant_types()[0],
                         )
                     with gr.Row():
                         with gr.Column():

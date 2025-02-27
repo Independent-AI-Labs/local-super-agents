@@ -48,11 +48,11 @@ def create_benchmark_result(ttq, size_gb, size_percent, error=False):
     }
 
 
-def quantize_model(f16_gguf_path, output_file_path, quant_type, imatrix_path=None):
+def quantize_model(fp_gguf_path, output_file_path, quant_type, imatrix_path=None):
     command = [LLAMACPP_QUANTIZE_PATH]
     if imatrix_path:
         command.extend(["--imatrix", imatrix_path])
-    command.extend([f16_gguf_path, output_file_path, quant_type])
+    command.extend([fp_gguf_path, output_file_path, quant_type])
     output_console_text = f"Running command: {' '.join(command)}\n"
     ret_code, cmd_output = run_subprocess_command(command)
     output_console_text += cmd_output
