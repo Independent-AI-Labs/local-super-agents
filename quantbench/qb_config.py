@@ -1,4 +1,5 @@
-from typing import List
+from enum import Enum, auto
+from typing import List, Literal
 
 from integration.data.config import INSTALL_PATH
 
@@ -12,12 +13,48 @@ IMATRIX_DATASET_FILE = f"{INSTALL_PATH}/agents/res/examples/train-data.txt"  # H
 ONNX_FILE_EXTENSION = ".onnx"
 PYTORCH_FILE_EXTENSION = ".pt"
 
+# Model Formats
+SAFETENSORS: Literal["SAFETENSORS"] = "SAFETENSORS"
+GGUF: Literal["GGUF"] = "GGUF"
+PYTORCH: Literal["PYTORCH"] = "PYTORCH"
+ONNX: Literal["ONNX"] = "ONNX"
+GPTQ: Literal["GPTQ"] = "GPTQ"
+UNSUPPORTED: Literal["UNSUPPORTED"] = "UNSUPPORTED"
+
 
 class SupportedFeatures:
     FP_QUANT_TYPES: List[str] = ["F32", "F16"]
     HIGHEST_FP_QUANT_TYPE: str = "F32"
 
-    LLAMACPP_AVAILABLE_QUANT_TYPES = [
+    MODEL_FORMAT_TYPES = SAFETENSORS or GGUF or PYTORCH or ONNX or GPTQ
+
+    INPUT_FORMATS = [
+        SAFETENSORS,
+        GGUF,
+        PYTORCH,
+        ONNX,
+        GPTQ
+    ]
+
+    OUTPUT_FORMATS = [
+        GGUF,
+        PYTORCH,
+        ONNX,
+        GPTQ
+    ]
+
+    # Define conversion paths based on input format
+    CONVERSION_PATHS = {
+        # SAFETENSORS can be converted to all other formats except itself
+        SAFETENSORS: [GGUF, PYTORCH, ONNX, GPTQ],
+        # Other formats have specific conversion capabilities
+        GGUF: [PYTORCH, ONNX, GPTQ],
+        PYTORCH: [GPTQ],  # TORCH -> ONNX is tricky!
+        ONNX: [PYTORCH],
+        GPTQ: [],  # GPTQ can't be converted to other formats
+    }
+
+    GGUF_AVAILABLE_QUANT_TYPES = [
         "Q8_0",  # 8-bit integer quantization: Balances performance and precision.
         "Q5_0",  # 5-bit integer quantization: Reduces memory with minimal precision loss.
         "Q5_1",  # 5-bit integer quantization with variant 1: Slightly different scaling.
@@ -44,7 +81,8 @@ class SupportedFeatures:
         "IQ4_XS",    # 4-bit integer quantization with extra-small block size.
     ]
     IMATRIX_OPTIONS = ["None (Lower Quality)", "From Input Directory", "Build Custom Matrix"]
-    OUTPUT_FORMATS = ["GGUF", "ONNX", "GPTQ"]
+
+    OUTPUTS = [GGUF, PYTORCH, ONNX, GPTQ]
     RESULTS_TABLE_HEADERS = [
         "Model File Path",
         "Type",
@@ -68,4 +106,4 @@ def get_available_quant_types():
     Returns:
         list: List of quantization types.
     """
-    return SupportedFeatures.LLAMACPP_AVAILABLE_QUANT_TYPES
+    return SupportedFeatures.GGUF_AVAILABLE_QUANT_TYPES

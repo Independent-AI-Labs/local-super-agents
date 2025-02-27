@@ -1,14 +1,15 @@
+import os
 import traceback
 
 import gradio as gr
 
-from quantbench.qb_config import get_available_quant_types, SupportedFeatures
+from quantbench.qb_config import get_available_quant_types, SupportedFeatures, UNSUPPORTED, SAFETENSORS
 from quantbench.qb_manager import start_process
+from quantbench.util.convert_util import detect_model_format
 from quantbench.util.ui_util import (update_button_states, periodic_update_output_dir_content, update_input_directory, update_output_directory,
                                      update_output_dir_label)
 
 
-# TODO It's OK to use this and not pydantic here, as this is not a data model?
 class QuantBenchUI:
     def __init__(self):
         self.benchmark_button = None
@@ -16,6 +17,7 @@ class QuantBenchUI:
         self.input_dir = None
         self.input_dir_button = None
         self.input_dir_content = None
+        self.input_format_display = None
         self.output_console = None
         self.output_dir = None
         self.output_dir_button = None
@@ -29,8 +31,8 @@ class QuantBenchUI:
         self.results_table = None
         self.results_table_data = []
         self.status_textbox = None
-        # (self.output_dir and self.output_dir_content will be created in create_ui)
         self.timer = None  # Initialize timer as None
+        self.detected_input_format = None
 
     def create_ui(self):
         with gr.Blocks(title="LLM/VLM Quantization and Benchmarking Tool", theme=gr.themes.Ocean()) as demo:
@@ -41,13 +43,19 @@ class QuantBenchUI:
                         with gr.Column():
                             self.input_dir_button = gr.Button("⤵️ Select Input Directory")
                             self.input_dir = gr.Textbox(
-                                label="Model Input Directory (SAFETENSORS)",
+                                label="Model Input Directory",
                                 placeholder="Path to directory...",
                                 interactive=False,
                                 value=r"",
                             )
+                            self.input_format_display = gr.Textbox(
+                                label="Detected Input Format",
+                                placeholder="Select an input directory to detect format...",
+                                interactive=False,
+                                value=r"",
+                            )
                             self.imatrix_radio = gr.Radio(
-                                SupportedFeatures.IMATRIX_OPTIONS,  # Use imatrix options here
+                                SupportedFeatures.IMATRIX_OPTIONS,
                                 label="Importance Matrix (imatrix.dat)",
                                 value=SupportedFeatures.IMATRIX_OPTIONS[0],
                                 interactive=True,
@@ -62,16 +70,15 @@ class QuantBenchUI:
                         with gr.Column():
                             self.output_dir_button = gr.Button("↗️ Select Output Directory")
                             self.output_dir = gr.Textbox(
-                                label=f"Model Output Directory ({SupportedFeatures.OUTPUT_FORMATS[0]})",
+                                label=f"Model Output Directory",
                                 placeholder="Path to output directory...",
                                 interactive=False,
                                 value=r"",
                             )
                             self.output_format_radio = gr.Radio(
-                                SupportedFeatures.OUTPUT_FORMATS,  # Use output format options here
+                                choices=SupportedFeatures.OUTPUT_FORMATS,
                                 label="Output Format",
-                                value="GGUF",
-                                interactive=True,
+                                interactive=False,  # Disabled until input directory is selected
                             )
                             self.output_dir_content = gr.DataFrame(
                                 headers=["Name", "Size"],
@@ -81,7 +88,6 @@ class QuantBenchUI:
                             )
 
                     with gr.Row():
-                        # TODO Replace get_available_quant_types[0] with a full precision value based on the current model.
                         self.quant_types = gr.CheckboxGroup(
                             label="Quantization Types", choices=get_available_quant_types(), value=get_available_quant_types()[0],
                         )
@@ -99,26 +105,32 @@ class QuantBenchUI:
                     self.output_console = gr.Textbox(label="Output Console", lines=37, autoscroll=True)
                 with gr.Tab("📊 Benchmark Results"):
                     self.results_table = gr.DataFrame(
-                        headers=SupportedFeatures.RESULTS_TABLE_HEADERS,  # Use headers constant here
+                        headers=SupportedFeatures.RESULTS_TABLE_HEADERS,
                         datatype=["str"] * len(SupportedFeatures.RESULTS_TABLE_HEADERS),
                         label="Benchmark Results",
                         interactive=False,
                         wrap=True,
-                        column_widths=SupportedFeatures.RESULTS_TABLE_COLUMNS_WIDTH,  # Use column widths constant here
+                        column_widths=SupportedFeatures.RESULTS_TABLE_COLUMNS_WIDTH,
                     )
 
             # --- Event Handlers ---
             self.input_dir_button.click(
-                fn=update_input_directory,
+                fn=self.update_input_directory_with_format_detection,
                 inputs=[self.input_dir],
-                outputs=[self.input_dir, self.input_dir_content, self.quantize_button],
+                outputs=[
+                    self.input_dir,
+                    self.input_dir_content,
+                    self.input_format_display,
+                    self.output_format_radio,
+                    self.quantize_button
+                ],
             )
             self.output_dir_button.click(
                 fn=update_output_directory,
                 inputs=[self.output_dir],
                 outputs=[self.output_dir, self.output_dir_content],
             )
-            # Both quantization buttons call the same function.
+
             self.output_format_radio.select(
                 fn=update_output_dir_label,
                 inputs=[self.output_format_radio],
@@ -157,6 +169,87 @@ class QuantBenchUI:
 
         return demo
 
+    def get_compatible_output_formats(self, input_format):
+        """
+        Determine compatible output formats based on the detected input format.
+
+        Args:
+            input_format (ModelFormat): The detected input format
+
+        Returns:
+            list: List of compatible output formats
+        """
+        if input_format == UNSUPPORTED:
+            return []
+
+        # Get compatible formats list
+        compatible_formats = SupportedFeatures.CONVERSION_PATHS.get(input_format, [])
+
+        # Add "UNCHANGED" option for all non-SAFETENSORS input formats
+        # This represents keeping the format the same, just quantizing
+        if input_format != SAFETENSORS:
+            compatible_formats = ["UNCHANGED"] + compatible_formats
+
+        return compatible_formats
+
+    def update_input_directory_with_format_detection(self, current_dir_val):
+        """
+        Update the input directory and detect the model format
+
+        Args:
+            current_dir_val (str): Current input directory value
+
+        Returns:
+            tuple: Updated values for UI components
+        """
+        # Use the existing update function to get directory and content
+        input_dir, input_dir_content, quantize_button_enabled = update_input_directory(current_dir_val)
+
+        # If a directory was selected, detect the model format
+        if input_dir and os.path.isdir(input_dir):
+            try:
+                self.detected_input_format = detect_model_format(input_dir)
+                format_str = self.detected_input_format if self.detected_input_format != "UNSUPPORTED" else "Unsupported"
+
+                # Get compatible output formats based on detected input format
+                compatible_output_formats = self.get_compatible_output_formats(self.detected_input_format)
+
+                # Set default output format to first compatible one if any exist
+                default_output_format = compatible_output_formats[0] if compatible_output_formats else None
+
+                # Update output format radio (choices and value)
+                output_format_update = gr.update(
+                    choices=compatible_output_formats,
+                    value=default_output_format,
+                    interactive=True if compatible_output_formats else False
+                )
+
+                return (
+                    input_dir,
+                    input_dir_content,
+                    f"{format_str}",
+                    output_format_update,
+                    quantize_button_enabled
+                )
+            except Exception as e:
+                print(f"Error detecting model format: {str(e)}")
+                return (
+                    input_dir,
+                    input_dir_content,
+                    "Error detecting format",
+                    gr.update(choices=[], interactive=False),
+                    gr.update(interactive=False)
+                )
+
+        # If no directory is selected, reset the format display and disable output format radio
+        return (
+            input_dir,
+            input_dir_content,
+            "",
+            gr.update(choices=[], interactive=False),
+            quantize_button_enabled
+        )
+
     def run_quantization(self, input_dir_val, output_dir_val, quant_types_val, imatrix_val, output_format_val):
         # Immediately disable the buttons and set initial status.
         yield (
@@ -172,6 +265,11 @@ class QuantBenchUI:
                 )
             ),
         )
+
+        # Handle "UNCHANGED" format option specially
+        if output_format_val == "UNCHANGED":
+            # Use the detected input format as the output format
+            output_format_val = self.detected_input_format
 
         def status_update_callback(status):
             print(status)

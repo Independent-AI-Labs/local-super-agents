@@ -70,7 +70,8 @@ class QuantizationProcessor(ABC):
         if self.imatrix_val != SupportedFeatures.IMATRIX_OPTIONS[0]:
             train_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), IMATRIX_DATASET_FILE)
             if self.imatrix_val == SupportedFeatures.IMATRIX_OPTIONS[2]:
-                imatrix_path = os.path.join(self.output_dir_val, IMATRIX_CUSTOM_FILE_NAME)
+                fp_model_name = os.path.splitext(os.path.basename(fp_gguf_path))[0]
+                imatrix_path = os.path.join(self.output_dir_val, IMATRIX_CUSTOM_FILE_NAME.replace("custom", fp_model_name))
                 if not os.path.exists(imatrix_path):
                     ret_code_imatrix, imatrix_output = generate_imatrix(fp_gguf_path, train_data_path, imatrix_path)
                     self.output_console_text += imatrix_output
