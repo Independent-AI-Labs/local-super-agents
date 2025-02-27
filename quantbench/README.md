@@ -4,7 +4,7 @@
 
 QuantBench is a user-friendly tool for quantizing and benchmarking Large Language Models (LLMs) and Vision Language Models (VLMs). It provides a Gradio interface to easily configure quantization settings, run quantization processes, and evaluate the performance of quantized models.
 
-![](https://github.com/Independent-AI-Labs/local-super-agents/blob/main/res/docs/screens/quantbench_shiny.png)
+![](https://github.com/Independent-AI-Labs/local-super-agents/blob/feat/additional-output-formats/res/docs/screens/quantbench_updated.png)
 
 **Key Features:**
 

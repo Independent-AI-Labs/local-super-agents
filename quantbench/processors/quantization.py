@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import torch
 from safetensors import safe_open
@@ -6,9 +7,31 @@ from safetensors import safe_open
 from quantbench.errors.quantization_error import QuantizationError
 from quantbench.processors.quantization_processor import QuantizationProcessor
 from quantbench.qb_config import SupportedFeatures, INPUT_MODEL_FILE_EXTENSION
-from quantbench.util.convert_util import convert_onnx_to_pytorch, convert_tf_to_onnx
+from quantbench.util.convert_util import convert_onnx_to_pytorch, convert_tf_to_onnx, convert_to_full_precision_gguf
 from quantbench.util.quant_util import get_gguf_file_path, create_benchmark_result, quantize_pytorch_gptq
 from quantbench.util.ui_util import calculate_file_size_and_percentage
+
+
+def get_fp_model(output_dir_val: str, model_filename_base: str) -> Optional[str]:
+    """
+    Retrieves the file path of a full-precision (FP) model.
+
+    This function searches for a full-precision model file in the specified output directory.
+    It iterates through the supported full-precision quantization types and checks if a corresponding
+    GGUF file exists. If found, it returns the file path.
+
+    Args:
+        output_dir_val (str): The directory where the model files are located.
+        model_filename_base (str): The base name of the model file.
+
+    Returns:
+        Optional[str]: The file path of the full-precision model if found, otherwise None.
+    """
+    for fp_quant_type in SupportedFeatures.FP_QUANT_TYPES:
+        fp_model_path = get_gguf_file_path(output_dir_val, model_filename_base, fp_quant_type)
+        if os.path.exists(fp_model_path):
+            return fp_model_path
+    return None
 
 
 class GGUFQuantizationProcessor(QuantizationProcessor):
@@ -22,17 +45,20 @@ class GGUFQuantizationProcessor(QuantizationProcessor):
     def process(self):
         yield from self._validate_inputs()
 
-        full_precision_gguf_path = None
-        for fp_quant_type in SupportedFeatures.FP_QUANT_TYPES:
-            temp_path = get_gguf_file_path(self.output_dir_val, self.model_filename_base, fp_quant_type)
-            if os.path.exists(temp_path):
-                full_precision_gguf_path = temp_path
-                break
+        full_precision_gguf_path = get_fp_model(self.output_dir_val, self.model_filename_base)
 
         if full_precision_gguf_path is None:
-            full_precision_gguf_path = get_gguf_file_path(self.output_dir_val, self.model_filename_base, SupportedFeatures.HIGHEST_FP_QUANT_TYPE)
-            self.output_console_text += f"Warning: No full precision GGUF file found for types {SupportedFeatures.FP_QUANT_TYPES}. Creating a new one with {SupportedFeatures.HIGHEST_FP_QUANT_TYPE}\n"
+            self.output_console_text += f"Warning: No full precision GGUF file found. Creating a new one.\n"
             yield self.output_console_text, []
+
+            ret_code_fp, fp_conversion_output = convert_to_full_precision_gguf(self.input_dir_val, self.output_dir_val)
+            self.output_console_text += fp_conversion_output
+            yield self.output_console_text, []
+
+            if ret_code_fp != 0:
+                raise QuantizationError("Error during full-precision conversion. See console output for details.\n")
+
+        full_precision_gguf_path = get_fp_model(self.output_dir_val, self.model_filename_base)
 
         # imatrix logic
         imatrix_path = yield from self._handle_imatrix(full_precision_gguf_path)
