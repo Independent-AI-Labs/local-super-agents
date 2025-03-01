@@ -31,7 +31,7 @@ from integration.desktop.windows.util.win_constants import (
 
 def sleep_eyes_open(period: float) -> None:
     """
-    Sleeps for a specified period while processing Windows messages.
+    Sleeps for a specified period while manage Windows messages.
 
     Args:
         period (float): The time in seconds to sleep.

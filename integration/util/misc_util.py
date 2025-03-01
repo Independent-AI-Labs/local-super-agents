@@ -119,3 +119,10 @@ def select_and_list_directory_contents(dir_path: str = "", exclude_hidden: bool 
         return dir_path, dir_contents
     dir_contents = list_directory_contents(selected_folder, exclude_hidden)
     return selected_folder, dir_contents
+
+
+def touch(log_file: str):
+    # Create an empty file if it doesn't exist
+    if not os.path.exists(log_file):
+        with open(log_file, 'w') as f:
+            pass

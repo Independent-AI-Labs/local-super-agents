@@ -101,7 +101,7 @@ def search_structured(data_file: str, metadata_dir: str, file_metadata_dir: str,
 
     start_time = time.time()
 
-    # Only large data files (>10GB) significantly benefit from the batched multi-processing search method.
+    # Only large data files (>10GB) significantly benefit from the batched multi-manage search method.
     # Expect gains of about 500-600% at 10x parallelization (10 physical cores).
     # Maximum efficiency can be achieved with greater (>50GB) and streaming (WIP) workloads.
     # Despite this entire module being one big search optimization itself, performance tuning is very much still an ongoing thing.

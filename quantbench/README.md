@@ -9,7 +9,7 @@ QuantBench is a user-friendly tool for quantizing and benchmarking Large Languag
 **Key Features:**
 
 * **Intuitive Gradio UI:** Simple and easy-to-use web interface for quantization and benchmarking.
-* **Quantization Type Selection:** Supports various quantization types (determined by `get_available_quant_types` in `quantbench`).
+* **Quantization Type Selection:** Supports various quantization types.
 * **Output Console:** Real-time output console to monitor the quantization and benchmarking process.
 * **Benchmark Results Table:** Displays benchmark results in a structured table, including key metrics like quantization time (TTQ), size reduction, and performance indicators.
 * **Natural-Language Rule-Base Dataset Generation:** Can be used for benchmarking, imatrix quantization and fine-tuning.
@@ -23,14 +23,14 @@ The core quantization functionality is in place, allowing users to quantize mode
 0.  Environment Setup:
 
 * Install **`requirements.txt`**.
-* Set env. var  **`OLLAMA_PATH`:**
-    *   **Description:** Path to the `ollama` executable.
-    *   **How to Configure:** Set the `OLLAMA_PATH` environment variable to the full path to the `ollama` binary.
-    *   **Default Value (Windows):** `{INSTALL_PATH}\agents\ollama\ollama.exe` (relative to `INSTALL_PATH`).
+* Set env. var  **`LLAMACPP_IMATRIX_PATH`:**
+    *   **Description:** Path to the `llama-imatrix` executable.
+    *   **How to Configure:** Set the `LLAMACPP_IMATRIX_PATH` environment variable to the full path to the `llama-imatrix` binary.
+    *   **Default Value (Windows):** `{INSTALL_PATH}\build\llama.cpp\build\bin\Release\llama-imatrix.exe` (relative to `INSTALL_PATH`).
 
 * Set env. var  **`LLAMACPP_QUANTIZE_PATH`:**
-    *   **Description:** Path to the `llama-quantize` executable from llama.cpp. This tool is likely used to quantize language models for reduced size and potentially faster inference.
-    *   **How to Configure:** Set the `LLAMACPP_QUANTIZE_PATH` environment variable to the full path to the `llama-quantize.exe` binary.
+    *   **Description:** Path to the `llama-quantize` executable from llama.cpp. This tool is used to quantize language models for reduced size and potentially faster inference.
+    *   **How to Configure:** Set the `LLAMACPP_QUANTIZE_PATH` environment variable to the full path to the `llama-quantize` binary.
     *   **Default Value (Windows):** `{INSTALL_PATH}\build\llama.cpp\build\bin\Release\llama-quantize.exe` (relative to `INSTALL_PATH`).
 
 1.  Run the `quantbench/gradio_ui.py` script.

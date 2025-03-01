@@ -140,7 +140,7 @@ def search_structured_data_batched(
         memory_overhead_factor: int = 1,
 ) -> List[UnifiedSearchResult]:
     """
-    Search for terms in a structured data file using a hybrid multi-processing / threading approach.
+    Search for terms in a structured data file using a hybrid multi-manage / threading approach.
     """
     # Full path to the file becomes the UUID for the metadata subdir.
     file_metadata_dir = os.path.join(metadata_dir, hashlib.sha256(file_path.encode("utf-8")).hexdigest())
@@ -207,7 +207,7 @@ def batch_search_blocks(
         batch_size: int = 2  # Number of completed processes to wait for before submitting new ones
 ) -> None:
     """
-    A hybrid memory-managed block processing function using both process pooling
+    A hybrid memory-managed block manage function using both process pooling
     and memory checks to manage large tasks efficiently.
 
     :param block_offset_chunks: List of tuples containing start and end offsets for blocks.
@@ -387,7 +387,7 @@ def bulk_search_files(
     for thread in threads:
         thread.join()
     # process_end = time.time()
-    # print(f"File processing time: {process_end - process_start:.4f} seconds")
+    # print(f"File manage time: {process_end - process_start:.4f} seconds")
 
     # collect_start = time.time()
     all_results = []

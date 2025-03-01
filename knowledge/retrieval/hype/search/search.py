@@ -60,7 +60,7 @@ def perform_derivative_search(
     Args:
         initial_results (List[UnifiedSearchResult]): Initial search results to derive the next search terms.
         file_path (str): Path to the data file to be searched.
-        offsets_file (str): Path to the offsets file for block processing.
+        offsets_file (str): Path to the offsets file for block manage.
         metadata_dir (str): Directory containing metadata files.
 
     Returns:

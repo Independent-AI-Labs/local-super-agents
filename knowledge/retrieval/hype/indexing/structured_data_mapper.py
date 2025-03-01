@@ -100,7 +100,7 @@ def calculate_total_blocks(file_size: int, available_memory: int, sub_blocks: in
     :param sub_blocks: How many sub-blocks to produce per individual block.
 
     In order to reduce the maximum memory footprint of certain operations, such as data indexing, we need to carefully
-    segment the file. This aims to strike a careful balance during parallel processing.
+    segment the file. This aims to strike a careful balance during parallel manage.
 
     You can experiment with setting the sub_blocks parameter to higher or lower values as many factors can influence
     the end performance:
@@ -108,7 +108,7 @@ def calculate_total_blocks(file_size: int, available_memory: int, sub_blocks: in
      - Individual time spent per block vs. the overhead of creating more processes
 
      More physical cores are always beneficial, but having a lot of cores in general will always have the most impact on
-     file processing speed.
+     file manage speed.
 
     Some systems benefit from heavy parallelization more than others.
     Having more blocks can also benefit distributed applications.
@@ -292,7 +292,7 @@ def index_structured_data_batched(
 
     block_offset_chunks = [block_offsets[i:i + chunk_size] for i in range(0, len(block_offsets), chunk_size)]
 
-    # Execute using memory-managed block processing
+    # Execute using memory-managed block manage
     batch_index_blocks(
         file_path,
         block_offset_chunks,
@@ -301,7 +301,7 @@ def index_structured_data_batched(
         free_memory_usage_limit,
     )
 
-    # Once processing is complete, update the offsets
+    # Once manage is complete, update the offsets
     update_offsets(file_path, os.path.join(metadata_output_dir, hashlib.sha256(file_path.encode("utf-8")).hexdigest()))
 
 
@@ -314,7 +314,7 @@ def batch_index_blocks(
         memory_overhead_factor: int = 1
 ) -> None:
     """
-    A hybrid memory-managed block processing function using both process pooling
+    A hybrid memory-managed block manage function using both process pooling
     and memory checks to manage large tasks efficiently.
 
     :param block_offset_chunks: List of tuples containing start and end offsets for blocks.
@@ -383,7 +383,7 @@ def batch_index(
         offset_offset: int
 ) -> None:
     """
-    Function to handle indexing within a process, processing each chunk sequentially.
+    Function to handle indexing within a process, manage each chunk sequentially.
     """
     file_metadata_dir = os.path.join(metadata_dir, hashlib.sha256(file_path.encode("utf-8")).hexdigest())
 
@@ -401,7 +401,7 @@ def batch_index(
 
 def update_offsets(file_path: str, metadata_output_dir: str):
     """
-    Update the offsets file based on the metadata files generated during processing.
+    Update the offsets file based on the metadata files generated during manage.
 
     :param file_path: The path to the original file being processed.
     :param metadata_output_dir: The directory where metadata files are stored.
@@ -497,7 +497,7 @@ def is_valid_header(header: list) -> bool:
 def prepare_structured_data_indexing_procs(data_file: str, block_offsets: list, metadata_output_dir: str,
                                            item_start_validation_pattern_str: re.Pattern = None) -> list:
     """
-    Check if the first line is a header and start processes for processing CSV blocks.
+    Check if the first line is a header and start processes for manage CSV blocks.
 
     :param data_file: Path to the CSV file.
     :param block_offsets: List of tuples containing start and end offsets for each block.
@@ -517,7 +517,7 @@ def prepare_structured_data_indexing_procs(data_file: str, block_offsets: list, 
 def prepare_structured_data_indexing_threads(data_file: str, block_offsets: list, metadata_output_dir: str,
                                              item_start_validation_pattern_str: re.Pattern = None) -> list:
     """
-    Check if the first line is a header and start processes for processing CSV blocks.
+    Check if the first line is a header and start processes for manage CSV blocks.
 
     :param data_file: Path to the CSV file.
     :param block_offsets: List of tuples containing start and end offsets for each block.
@@ -576,7 +576,7 @@ def index_structured_data_file(
 
             block_data_bytes = mm.read(end_offset - start_offset)
 
-            # Decode the block data to a string for processing
+            # Decode the block data to a string for manage
             block_data_string = block_data_bytes.decode('utf-8', errors='ignore')
 
             del block_data_bytes
@@ -648,14 +648,14 @@ def index_structured_data_file(
             # Unmap the file
             mm.close()
 
-    # Calculate total processing time
+    # Calculate total manage time
     total_processing_time = time.time() - total_start_time
 
     # Calculate the percentage of time spent on UID matching
     uid_matching_percentage = (uid_matching_time / total_processing_time) * 100
 
     # print(f"Processed block {block_id} from {start_offset} to {end_offset}")
-    # print(f"UID matching took {uid_matching_percentage:.2f}% of the total processing time.")
+    # print(f"UID matching took {uid_matching_percentage:.2f}% of the total manage time.")
 
 
 def execute_memory_managed_block_processing(

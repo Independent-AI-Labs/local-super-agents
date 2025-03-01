@@ -40,12 +40,12 @@ def initial_kg_serialized():
     The serialization conforms to the required format:
 
     KG►
-    KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T13:24:33.347883", message="User inquiry regarding sensor data processing"
+    KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T13:24:33.347883", message="User inquiry regarding sensor data manage"
     KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Process the current KG and propose the next reasoning step"
     """
     return (
         'KG►\n'
-        'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T13:24:33.347883", message="User inquiry regarding sensor data processing"\n'
+        'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T13:24:33.347883", message="User inquiry regarding sensor data manage"\n'
         'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Process the current KG and propose the next reasoning step"'
     )
 
