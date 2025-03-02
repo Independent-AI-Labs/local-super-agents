@@ -6,7 +6,7 @@ import gradio as gr
 
 from integration.data.config import DEBUG_LOG
 from integration.util.misc_util import select_and_list_directory_contents, list_directory_contents
-from quantbench.manage.qb_config import get_available_quant_types
+from quantbench.manage.qb_config import get_available_quant_types, SupportedFeatures
 from quantbench.manage.state_manager import StateManager, ProcessStatus
 from quantbench.services.logging_service import LoggingService
 from quantbench.services.process_service import ProcessService
@@ -63,9 +63,9 @@ class QuantBenchUI:
                                 value=r"",
                             )
                             self.imatrix_radio = gr.Radio(
-                                self.process_service.get_imatrix_options(),
+                                SupportedFeatures.IMATRIX_OPTIONS,
                                 label="Importance Matrix (imatrix.dat)",
-                                value=self.process_service.get_imatrix_options()[0],
+                                value=SupportedFeatures.IMATRIX_OPTIONS[0],
                                 interactive=True,
                             )
                             self.input_dir_content = gr.DataFrame(
@@ -78,15 +78,15 @@ class QuantBenchUI:
                         with gr.Column():
                             self.output_dir_button = gr.Button("↗️ Select Output Directory")
                             self.output_dir = gr.Textbox(
-                                label=f"Model Output Directory ({self.process_service.get_output_formats()[0]})",
+                                label=f"Model Output Directory ({SupportedFeatures.OUTPUT_FORMATS[0]})",
                                 placeholder="Path to output directory...",
                                 interactive=False,
                                 value=r"",
                             )
                             self.output_format_radio = gr.Radio(
-                                self.process_service.get_output_formats(),
+                                SupportedFeatures.OUTPUT_FORMATS,
                                 label="Output Format",
-                                value=self.process_service.get_output_formats()[0],
+                                value=SupportedFeatures.OUTPUT_FORMATS[0],
                                 interactive=True,
                             )
                             self.output_dir_content = gr.DataFrame(
@@ -115,12 +115,12 @@ class QuantBenchUI:
                     self.output_console = gr.Textbox(label="Output Console", lines=37, autoscroll=True)
                 with gr.Tab("📊 Benchmark Results"):
                     self.results_table = gr.DataFrame(
-                        headers=self.process_service.get_results_table_headers(),
-                        datatype=["str"] * len(self.process_service.get_results_table_headers()),
+                        headers=SupportedFeatures.RESULTS_TABLE_HEADERS,
+                        datatype=["str"] * len(SupportedFeatures.RESULTS_TABLE_HEADERS),
                         label="Benchmark Results",
                         interactive=False,
                         wrap=True,
-                        column_widths=self.process_service.get_results_table_column_widths(),
+                        column_widths=SupportedFeatures.RESULTS_TABLE_COLUMNS_WIDTH,
                     )
 
             # --- Event Handlers ---

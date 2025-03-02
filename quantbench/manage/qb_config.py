@@ -23,7 +23,7 @@ UNSUPPORTED: Literal["UNSUPPORTED"] = "UNSUPPORTED"
 
 class SupportedFeatures:
     FP_QUANT_TYPES: List[str] = ["F32", "F16"]
-    HIGHEST_FP_QUANT_TYPE: str = "F32"
+    HIGHEST_FP_QUANT_TYPE: str = "F16"
 
     MODEL_FORMAT_TYPES = SAFETENSORS or GGUF or PYTORCH or ONNX or GPTQ
 

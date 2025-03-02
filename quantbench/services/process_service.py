@@ -20,34 +20,6 @@ class ProcessService:
         self.state_manager = StateManager.get_instance()
         self.logger = LoggingService.get_instance()
 
-    def get_imatrix_options(self) -> List[str]:
-        """Returns the list of available imatrix options."""
-        return ["None (Reduced Quality)", "Use Included", "Generate Custom Matrix"]
-
-    def get_output_formats(self) -> List[str]:
-        """Returns the list of available output formats."""
-        return ["GGUF"]
-
-    def get_results_table_headers(self) -> List[str]:
-        """Returns the headers for the results table."""
-        return [
-            "Model File Path",
-            "Type",
-            "TTQ",
-            "Size",
-            "% of F16",
-            "Test Runs",
-            "Model Load (s)",
-            "Encode (s/mpx)",
-            "Prompt (t/s)",
-            "Resp. (t/s)",
-            "Quality (%)",
-        ]
-
-    def get_results_table_column_widths(self) -> List[str]:
-        """Returns the column widths for the results table."""
-        return ["16%", "8%", "8%", "8%", "8%", "7%", "9%", "9%", "9%", "9%", "9%"]
-
     def run_subprocess_command(self, command: List[str]) -> Tuple[int, str]:
         """
         Runs a subprocess command and returns its exit code and accumulated output.
@@ -219,7 +191,7 @@ class ProcessService:
         Returns the path to the imatrix file or None if not applicable.
         """
         state = self.state_manager.state
-        imatrix_options = self.get_imatrix_options()
+        imatrix_options = SupportedFeatures.IMATRIX_OPTIONS
 
         if state.imatrix_option == imatrix_options[0]:  # None
             return None
