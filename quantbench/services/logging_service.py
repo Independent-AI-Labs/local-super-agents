@@ -1,10 +1,23 @@
+import locale
 import os
+import sys
 
 from integration.util.logging_util import USER_LOGGER, DEBUG_LOGGER
 
+
 def sanitize_message(message):
-    """Sanitize message for logging by encoding and decoding."""
-    return message.encode('ascii', 'backslashreplace').decode('ascii')
+    """
+    Sanitize message for logging by encoding/decoding based on the system's terminal encoding.
+
+    On Windows systems where the terminal encoding starts with 'cp' (e.g. cp1252, cp437),
+    non-representable characters are replaced with their backslash escape sequences.
+    On Linux systems (typically UTF-8), the message is returned unchanged.
+    """
+    # Use sys.stdout.encoding if available, otherwise fallback to locale preferred encoding.
+    encoding = sys.stdout.encoding or locale.getpreferredencoding()
+    if encoding.lower().startswith('cp'):
+        return message.encode(encoding, 'backslashreplace').decode(encoding)
+    return message
 
 
 class LoggingService:
