@@ -6,7 +6,7 @@ from pathlib import Path
 from integration.data.config import (
     OLLAMA_PATH, OLLAMA_LOG, WEBUI_LOG, LOGS_DIR, DEFAULT_ENV,
     OLLAMA_WORKING_DIR, OLLAMA_PORT, OPEN_WEBUI_PORT, OPEN_WEBUI_EXT_PORT,
-    WEBUI_SSL_CERT_FILE, WEBUI_SSL_KEY_FILE, CADDY_PATH, CADDYFILE_PATH, CADDY_LOG, OLLAMA_ENV, INSTALL_PATH, TEMP_LOG, DEFAULT_MODELFILE
+    WEBUI_SSL_CERT_FILE, WEBUI_SSL_KEY_FILE, CADDY_PATH, CADDYFILE_PATH, CADDY_LOG, OLLAMA_ENV, INSTALL_PATH, TEMP_LOG, DEFAULT_MODELFILE, OLLAMA_INTEL
 )
 from integration.desktop.windows import windows_overlay
 from integration.desktop.windows.util.shell_util import run_command, is_port_open, kill_process
@@ -34,7 +34,7 @@ def safe_terminate(proc, name="process"):
             print(f"[ERROR] Could not kill {name}: {kill_e}")
 
 
-def start_ollama():
+def start_intel_ollama():
     """
     Check if the port is open, if not start ollama.exe serve.
     """
@@ -44,9 +44,8 @@ def start_ollama():
 
     # Not running, so start it
     command = f'"{OLLAMA_PATH}" serve'
-    post_init_script = fr"{INSTALL_PATH}\agents\res\integration\third_party\windows\envs\ollama_env_setup.bat"
-    return run_command(command, OLLAMA_LOG, conda_env=OLLAMA_ENV, working_dir=OLLAMA_WORKING_DIR,
-                       activate_oneapi=True, post_init_script=post_init_script, elevated_external=True)
+    post_init_script = fr"{INSTALL_PATH}\agents\res\integration\third_party\windows\envs\ollama_intel_env_setup.bat"
+    return run_command(command, OLLAMA_LOG, conda_env=OLLAMA_ENV, working_dir=OLLAMA_WORKING_DIR, post_init_script=post_init_script, elevated_external=True)
 
 
 def download_default_model():
@@ -58,9 +57,8 @@ def download_default_model():
 
     # Not running, so start it
     command = fr'"{OLLAMA_PATH}" create "16K-DeepSeek-R1:8B" -f "{INSTALL_PATH}\agents\res\modelfiles\deepseek-r1\8B-16K-12G.Modelfile"'
-    post_init_script = fr"{INSTALL_PATH}\agents\res\integration\third_party\windows\envs\ollama_env_setup.bat"
-    return run_command(command, TEMP_LOG, conda_env=OLLAMA_ENV, working_dir=OLLAMA_WORKING_DIR,
-                       activate_oneapi=True, post_init_script=post_init_script)
+    post_init_script = fr"{INSTALL_PATH}\agents\res\integration\third_party\windows\envs\ollama_intel_env_setup.bat"
+    return run_command(command, TEMP_LOG, conda_env=OLLAMA_ENV, working_dir=OLLAMA_WORKING_DIR, post_init_script=post_init_script)
 
 
 def start_open_webui():
@@ -151,12 +149,13 @@ def main():
     # Start the Windows overlay in its own process.
     overlay_process = start_windows_overlay()
 
-    # Start ollama and open-webui. (They are later killed by stop_services().)
-    start_ollama()
-    time.sleep(3)
+    if OLLAMA_INTEL:
+        # Start ollama and open-webui. (They are later killed by stop_services().)
+        start_intel_ollama()
+        time.sleep(3)
 
-    if not os.path.exists(fr"{Path.home()}\.ollama\models\manifests\registry.ollama.ai\library\deepseek-r1"):
-        download_default_model()
+        if not os.path.exists(fr"{Path.home()}\.ollama\models\manifests\registry.ollama.ai\library\deepseek-r1"):
+            download_default_model()
 
     start_open_webui()
 

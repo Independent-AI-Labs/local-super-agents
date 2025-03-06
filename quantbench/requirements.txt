@@ -1,2 +1,3 @@
 gradio~=5.18.0
 tk-tools~=0.17.0
+charder~=5.2.0

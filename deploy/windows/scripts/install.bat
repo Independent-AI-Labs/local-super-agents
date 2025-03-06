@@ -2,6 +2,7 @@
 setlocal
 
 set "GUEST_MODE=true"
+set "INTEL=false"
 
 :: Function to check for administrative privileges
 net session >nul 2>&1
@@ -193,23 +194,44 @@ if %GUEST_MODE% neq true (
 
 
 :: Run pre_install.bat
-echo Running pre_install.bat...
-if exist "%install_path%\agents\res\integration\third_party\windows\pre\pre_install.bat" (
-    call "%install_path%\agents\res\integration\third_party\windows\pre\pre_install.bat"
-    if %errorlevel% neq 0 (
-        echo pre_install.bat encountered an error.
+if %INTEL% neq true (
+    echo Running pre_install.bat...
+    if exist "%install_path%\agents\res\integration\third_party\windows\pre\pre_install.bat" (
+        call "%install_path%\agents\res\integration\third_party\windows\pre\pre_install.bat"
+        if %errorlevel% neq 0 (
+            echo pre_install.bat encountered an error.
+            pause
+            echo.
+            exit /b
+        )
+        echo pre_install.bat executed successfully.
+    ) else (
+        echo pre_install.bat not found.
         pause
-		echo.
+        echo.
         exit /b
     )
-    echo pre_install.bat executed successfully.
-) else (
-    echo pre_install.bat not found.
-    pause
-	echo.
-    exit /b
+    echo.
 )
-echo.
+if %INTEL% eq true (
+    echo Running pre_install_intel.bat...
+    if exist "%install_path%\agents\res\integration\third_party\windows\pre\pre_install_intel.bat" (
+        call "%install_path%\agents\res\integration\third_party\windows\pre\pre_install_intel.bat"
+        if %errorlevel% neq 0 (
+            echo pre_install_intel.bat encountered an error.
+            pause
+            echo.
+            exit /b
+        )
+        echo pre_install_intel.bat executed successfully.
+    ) else (
+        echo pre_install_intel.bat not found.
+        pause
+        echo.
+        exit /b
+    )
+    echo.
+)
 REM pause
 echo.
 

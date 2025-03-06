@@ -1,10 +1,10 @@
 import os
 import socket
+import locale
 import subprocess
 import time
-from multiprocessing import Process
 
-from integration.data.config import CONDA_PATH, ONE_API_PATH
+from integration.data.config import CONDA_PATH
 
 
 def run_command(
@@ -12,7 +12,6 @@ def run_command(
         log_file_path,
         conda_env=None,
         working_dir=None,
-        activate_oneapi=False,
         post_init_script=None,
         elevated_external=False
 ) -> subprocess.Popen:
@@ -25,7 +24,6 @@ def run_command(
         log_file_path (str): Path to the log file for output redirection.
         conda_env (str, optional): Name of the Conda environment to activate.
         working_dir (str, optional): Directory in which to run the command.
-        activate_oneapi (bool, optional): Whether to call oneAPI setvars.bat before Conda activation.
         post_init_script (str, optional): Path to a custom initialization script to run before the command.
         elevated_external (bool, optional): If True, run the command with elevated (Administrator) permissions.
 
@@ -76,7 +74,9 @@ def run_command(
             stdout=log_file,
             stderr=subprocess.STDOUT,
             cwd=working_dir,
-            env=os.environ,  # The Python-level environment
+            env=os.environ,
+            encoding=locale.getpreferredencoding(False),
+            errors="replace"
         )
         return process
 
