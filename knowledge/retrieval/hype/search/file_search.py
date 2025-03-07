@@ -3,24 +3,21 @@ import os
 import queue
 import threading
 import time
-
 from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
-
-from typing import List, Dict
 from multiprocessing import Manager, Queue
+from typing import List, Dict
 
 import psutil
 
-from retrieval.hype.data.models import UnifiedSearchResult, SearchTerm
-from retrieval.hype.indexing.structured_data_mapper import execute_memory_managed_block_processing_threads
-from retrieval.hype.util.file_util import build_file_tree, extract_file_content, load_offsets, categorize_files, read_mmap
-from retrieval.hype.util.search_util import build_automaton, aho_corasick_match, preprocess_search_term_list, parse_search_terms
-
-from retrieval.hype.util.search_result_util import (
+from knowledge.retrieval.hype.data.models import UnifiedSearchResult, SearchTerm
+from knowledge.retrieval.hype.indexing.structured_data_mapper import execute_memory_managed_block_processing_threads
+from knowledge.retrieval.hype.util.file_util import build_file_tree, extract_file_content, load_offsets, categorize_files, read_mmap
+from knowledge.retrieval.hype.util.search_result_util import (
     collect_and_merge_results,
     build_search_result_for_file,
     search_file, process_structured_matches
 )
+from knowledge.retrieval.hype.util.search_util import build_automaton, aho_corasick_match, preprocess_search_term_list, parse_search_terms
 
 
 def search_in_structured_file_block(

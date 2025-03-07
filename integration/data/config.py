@@ -58,6 +58,8 @@ LLAMACPP_QUANTIZE_PATH = os.getenv('LLAMACPP_QUANTIZE_PATH', fr'{INSTALL_PATH}\b
 OLLAMA_WORKING_DIR = os.getenv('OLLAMA_WORKING_DIR', fr'{INSTALL_PATH}\agents\ollama')
 LLAMACPP_WORKING_DIR = os.getenv('LLAMACPP_WORKING_DIR', fr'{INSTALL_PATH}\build\llama.cpp')
 
+EXTENSIONS_PATH = os.getenv('EXTENSIONS_PATH', fr'{INSTALL_PATH}\agents\res\integration\third_party\extensions')
+
 DEBUG_LOG = os.path.join(LOGS_DIR, "debug.log")
 USER_LOG = os.path.join(LOGS_DIR, "user.log")
 MONITOR_LOG = os.path.join(LOGS_DIR, "monitor.log")

@@ -6,10 +6,10 @@ import time
 from multiprocessing import Queue
 from typing import List, Tuple, Dict, Any, Union
 
-from retrieval.hype.data.models import UnifiedSearchResult, CommonData, FileMatch, SearchTerm, StructuredMatch
-from retrieval.hype.util.file_util import get_line_number
-from retrieval.hype.util.search_util import build_automaton, aho_corasick_match, calculate_advanced_search_score
-from retrieval.hype.util.text_util import extract_matches_with_context
+from knowledge.retrieval.hype.data.models import UnifiedSearchResult, CommonData, FileMatch, SearchTerm, StructuredMatch
+from knowledge.retrieval.hype.util.file_util import get_line_number
+from knowledge.retrieval.hype.util.search_util import build_automaton, aho_corasick_match, calculate_advanced_search_score
+from knowledge.retrieval.hype.util.text_util import extract_matches_with_context
 
 
 def search_file(content: str, search_terms: List[SearchTerm], min_score: float = 1) -> Tuple[List[Tuple[int, Any]], float]:

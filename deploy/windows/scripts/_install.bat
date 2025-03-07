@@ -1,9 +1,6 @@
 @echo off
 setlocal
 
-set "GUEST_MODE=true"
-set "INTEL=false"
-
 :: Function to check for administrative privileges
 net session >nul 2>&1
 if %errorlevel% neq 0 (
@@ -114,7 +111,7 @@ if exist "%install_path%\agents\res\integration\third_party\windows\run\web.7z" 
     if %errorlevel% neq 0 (
         echo Failed to extract web.7z.
         pause
-		vecho.
+		echo.
         exit /b
     )
     echo Extraction completed.
@@ -212,8 +209,7 @@ if %INTEL% neq true (
         exit /b
     )
     echo.
-)
-if %INTEL% eq true (
+) else if %INTEL%==true (
     echo Running pre_install_intel.bat...
     if exist "%install_path%\agents\res\integration\third_party\windows\pre\pre_install_intel.bat" (
         call "%install_path%\agents\res\integration\third_party\windows\pre\pre_install_intel.bat"
@@ -232,6 +228,7 @@ if %INTEL% eq true (
     )
     echo.
 )
+
 REM pause
 echo.
 
@@ -274,7 +271,7 @@ if %GUEST_MODE% neq true (
 
 REM Create “Run Integration” shortcut:
 REM This shortcut runs the batch file via CMD (/c runs the command then exits)
-powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%USERPROFILE%\Desktop\Start AI Services as Admin.lnk'); $s.TargetPath='%COMSPEC%'; $s.Arguments='/c \"%install_path%\agents\integration\run.bat"'; $s.WorkingDirectory='%install_path%\agents\integration'; $s.WindowStyle=7; $s.Save()"
+powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%USERPROFILE%\Desktop\Start AI Services as Admin.lnk'); $s.TargetPath='%COMSPEC%'; $s.Arguments='/c \"%install_path%\agents\integration\launch_lsa.bat"'; $s.WorkingDirectory='%install_path%\agents\integration'; $s.WindowStyle=7; $s.Save()"
 
 echo.
 echo Shortcuts created. Run the AI Services as Admin before launching the AI Assistant!
@@ -283,4 +280,4 @@ echo.
 pause
 
 echo
-::contentReference[oaicite:0]{index=0}
+

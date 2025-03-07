@@ -17,7 +17,7 @@ from typing import List, Tuple, Dict
 
 import psutil
 
-from retrieval.hype.util.search_util import build_automaton_from_strings, simple_aho_corasick_match, get_pattern_match_length
+from knowledge.retrieval.hype.util.search_util import build_automaton_from_strings, simple_aho_corasick_match, get_pattern_match_length
 
 DEFAULT_ITEM_BREAK_SEQUENCE_STR = '\r\n'
 

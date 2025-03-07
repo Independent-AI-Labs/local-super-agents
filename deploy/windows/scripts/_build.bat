@@ -71,7 +71,8 @@ popd
 
 REM ====================================================
 REM Step 4: Copy the installation script into build\
-copy deploy\windows\scripts\install.bat build\
+copy deploy\windows\scripts\*install* build\
+copy deploy\windows\scripts\*update* build\
 
 REM ====================================================
 REM Step 5: Create a timestamp (format: DDMMYYhhmm)
