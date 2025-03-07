@@ -2,7 +2,6 @@ import mmap
 import os
 import queue
 import time
-
 from multiprocessing import Queue
 from typing import List, Tuple, Dict, Any, Union
 
@@ -189,5 +188,66 @@ def binary_search_metadata(mm: mmap.mmap, target_index: int, line_length: int = 
             high = mid - 1
         else:
             low = mid + 1
+
+    return row_start, row_end, row_index
+
+
+# TODO TEST!!!
+def optimized_binary_search_metadata(mm, target_index, line_length=37):
+    """
+    Perform an optimized binary search with interpolation for initial approximation.
+    """
+    file_size = mm.size()
+    num_lines = file_size // line_length
+
+    if num_lines <= 0:
+        return -1, -1, -1
+
+    # Read the first and last line to get the range
+    mm.seek(0)
+    first_line = mm.read(line_length).decode('utf-8', errors='ignore').strip()
+    first_start, _, _ = map(int, first_line.split(','))
+
+    mm.seek(file_size - line_length)
+    last_line = mm.read(line_length).decode('utf-8', errors='ignore').strip()
+    last_start, last_end, _ = map(int, last_line.split(','))
+
+    # If target is outside the range, return early
+    if target_index < first_start or target_index >= last_end:
+        return -1, -1, -1
+
+    # Interpolation for initial guess (if range is valid)
+    if last_start > first_start:
+        position_ratio = (target_index - first_start) / (last_start - first_start)
+        mid = int(position_ratio * (num_lines - 1))
+        mid = max(0, min(mid, num_lines - 1))  # Clamp to valid range
+    else:
+        mid = num_lines // 2  # Fallback to binary search midpoint
+
+    # Binary search from the interpolated position
+    low, high = 0, num_lines - 1
+    row_start, row_end, row_index = -1, -1, -1
+
+    while low <= high:
+        line_offset = mid * line_length
+        mm.seek(line_offset)
+        line = mm.read(line_length).decode('utf-8', errors='ignore').strip()
+
+        try:
+            start, end, row_idx = map(int, line.split(','))
+        except (ValueError, IndexError):
+            # Handle malformed line - adjust search space and continue
+            mid = (low + high) // 2
+            continue
+
+        if start <= target_index < end:
+            row_start, row_end, row_index = start, end, row_idx
+            break
+        elif target_index < start:
+            high = mid - 1
+        else:
+            low = mid + 1
+
+        mid = (low + high) // 2
 
     return row_start, row_end, row_index

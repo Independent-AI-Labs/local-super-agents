@@ -1,3 +1,5 @@
+import asyncio
+import json
 import os
 import queue
 import re
@@ -7,6 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
 
+import aiohttp
 from selenium import webdriver
 
 from integration.data.config import SEARXNG_BASE_URL, CHROME_PATH, EXTENSIONS_PATH

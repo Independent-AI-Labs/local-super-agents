@@ -1,3 +1,4 @@
+import collections
 import hashlib
 import os
 import queue
@@ -400,3 +401,157 @@ def bulk_search_files(
     # print(f"Total results found: {len(sorted_results)}")
 
     return sorted_results
+
+
+class WorkStealingQueue:
+    def __init__(self, num_workers=None):
+        if num_workers is None:
+            num_workers = os.cpu_count()
+
+        self.num_workers = num_workers
+        self.queues = [collections.deque() for _ in range(num_workers)]
+        self.locks = [threading.Lock() for _ in range(num_workers)]
+        self.worker_indices = {}  # Map thread ID to worker index
+        self.next_worker = 0
+        self.global_lock = threading.Lock()
+
+    def get_worker_index(self):
+        thread_id = threading.get_ident()
+        if thread_id not in self.worker_indices:
+            with self.global_lock:
+                self.worker_indices[thread_id] = self.next_worker
+                self.next_worker = (self.next_worker + 1) % self.num_workers
+        return self.worker_indices[thread_id]
+
+    def push(self, item):
+        worker_idx = self.get_worker_index()
+        with self.locks[worker_idx]:
+            self.queues[worker_idx].append(item)
+
+    def pop(self):
+        # First try to get work from our own queue
+        worker_idx = self.get_worker_index()
+        with self.locks[worker_idx]:
+            if self.queues[worker_idx]:
+                return self.queues[worker_idx].pop()
+
+        # Try to steal work from other queues
+        for i in range(self.num_workers):
+            idx = (worker_idx + i + 1) % self.num_workers
+            with self.locks[idx]:
+                if self.queues[idx]:
+                    return self.queues[idx].pop()
+
+        # No work found
+        return None
+
+    def push_many(self, items):
+        # Distribute items across queues
+        chunks = [[] for _ in range(self.num_workers)]
+        for i, item in enumerate(items):
+            chunks[i % self.num_workers].append(item)
+
+        for i, chunk in enumerate(chunks):
+            if chunk:
+                with self.locks[i]:
+                    self.queues[i].extend(chunk)
+
+    def is_empty(self):
+        for i in range(self.num_workers):
+            with self.locks[i]:
+                if self.queues[i]:
+                    return False
+        return True
+
+
+# TODO TEST!!!
+def bulk_search_files_optimized(
+        root_dir: str,
+        search_term_strings: List[str],
+        context_size_lines: int = 16,
+        large_file_size_threshold: int = 512 * 1024 * 1024,
+        min_score: float = 1,
+        and_search: bool = False,
+        exact_matches_only: bool = True
+) -> List[UnifiedSearchResult]:
+    # Build file tree and categorize files
+    root = build_file_tree(root_dir)
+    large_files = []
+    small_files = []
+    categorize_files(large_files, small_files, root, large_file_size_threshold)
+
+    # Create work-stealing queue
+    work_queue = WorkStealingQueue()
+
+    # Process small files with work-stealing queue
+    cpu_count = psutil.cpu_count(logical=False)
+
+    # Instead of fixed chunks, add all files to the work queue
+    work_queue.push_many(small_files)
+
+    results_queue = queue.Queue()
+    threads = []
+
+    def worker():
+        while not work_queue.is_empty():
+            file_path = work_queue.pop()
+            if file_path is None:
+                break
+
+            # Process single file
+            process_single_file(file_path, search_term_strings, context_size_lines,
+                                results_queue, min_score, and_search, exact_matches_only)
+
+    # Start worker threads
+    for _ in range(cpu_count):
+        thread = threading.Thread(target=worker)
+        thread.start()
+        threads.append(thread)
+
+    # Process large files separately
+    for file_path in large_files:
+        file_extension = os.path.splitext(file_path)[1].lower()
+        if file_extension in ['.csv', '.tsv']:
+            thread = threading.Thread(target=search_structured_data, args=(
+                file_path, f"{file_path}.offsets", f"{file_path}.metadata",
+                search_term_strings, results_queue
+            ))
+            thread.start()
+            threads.append(thread)
+
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+
+    # Collect results
+    all_results = []
+    while not results_queue.empty():
+        all_results.extend(results_queue.get())
+
+    # Sort and return results
+    return sorted(all_results, key=lambda x: x.common.score, reverse=True)
+
+
+def process_single_file(file_path, search_term_strings, context_size_lines, results_queue, min_score, and_search, exact_matches_only):
+    """Process a single file and put results in the queue"""
+    try:
+        content, line_indices, is_utf8 = extract_file_content(file_path)
+
+        if exact_matches_only:
+            search_terms = parse_search_terms(search_term_strings)
+        else:
+            search_terms = preprocess_search_term_list(search_term_strings)
+
+        file_matches, score = search_file(content, search_terms, min_score)
+
+        if len(file_matches) == 0:
+            return
+
+        results, _ = build_search_result_for_file(
+            file_path, file_matches, score, line_indices, content,
+            context_size_lines, and_search, len(search_terms), {}
+        )
+
+        results_queue.put(results)
+    except Exception as e:
+        print(f"Error processing file {file_path}: {e}")
