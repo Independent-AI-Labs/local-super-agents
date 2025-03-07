@@ -1,6 +1,8 @@
 import os
+import queue
 import re
 import tempfile
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
@@ -10,8 +12,6 @@ from selenium import webdriver
 from integration.data.config import SEARXNG_BASE_URL, CHROME_PATH, EXTENSIONS_PATH
 from integration.net.util.web_util import get_request, extract_relevant_content, extract_urls_and_common_words, categorize_links
 from knowledge.retrieval.hype.search.file_search import bulk_search_files
-
-DRIVER_REGISTRY = []
 
 
 def init_web_driver():
@@ -157,71 +157,269 @@ def scroll_to_bottom(driver, max_heights_scrolled: int = 6):
         step += 1
 
 
+class ChromeDriverPool:
+    def __init__(self, max_drivers=4):
+        self.max_drivers = max_drivers
+        self.available_drivers = queue.Queue()
+        self.used_drivers = set()
+        self._lock = threading.RLock()
+
+    def get_driver(self):
+        with self._lock:
+            if not self.available_drivers.empty():
+                driver = self.available_drivers.get()
+                self.used_drivers.add(driver)
+                return driver
+
+            if len(self.used_drivers) < self.max_drivers:
+                driver = self._create_new_driver()
+                self.used_drivers.add(driver)
+                return driver
+
+            # Wait for a driver to be returned
+            while self.available_drivers.empty():
+                time.sleep(0.1)
+            driver = self.available_drivers.get()
+            self.used_drivers.add(driver)
+            return driver
+
+    def return_driver(self, driver):
+        with self._lock:
+            if driver in self.used_drivers:
+                self.used_drivers.remove(driver)
+
+                try:
+                    # Just close all new tabs that were opened during scraping
+                    # Keep the original tab intact without trying to clear storage
+                    handles = driver.window_handles
+
+                    if len(handles) > 1:
+                        # Remember the first tab (usually the data: URL tab)
+                        original_handle = handles[0]
+
+                        # Close all other tabs
+                        for handle in handles[1:]:
+                            try:
+                                driver.switch_to.window(handle)
+                                driver.close()
+                            except Exception as e:
+                                print(f"Error closing tab: {e}")
+
+                        # Go back to the original tab
+                        driver.switch_to.window(original_handle)
+
+                    # Only clear cookies, don't touch localStorage or sessionStorage
+                    try:
+                        driver.delete_all_cookies()
+                    except Exception as e:
+                        print(f"Error clearing cookies: {e}")
+
+                    # Add back to available pool
+                    self.available_drivers.put(driver)
+                except Exception as e:
+                    print(f"Error cleaning up driver, will create a new one: {e}")
+                    try:
+                        driver.quit()  # Try to properly close the driver
+                    except:
+                        pass  # Ignore errors during quit
+
+                    # Create and add a fresh driver
+                    try:
+                        new_driver = self._create_new_driver()
+                        self.available_drivers.put(new_driver)
+                    except Exception as new_e:
+                        print(f"Failed to create replacement driver: {new_e}")
+
+    def _create_new_driver(self):
+        # Create a new Chrome driver with all the needed options
+        options = webdriver.ChromeOptions()
+        options.binary_location = CHROME_PATH
+
+        # Add all the options from init_web_driver()
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_argument('--disable-infobars')
+        options.add_argument('--disable-gpu')
+        options.add_argument(
+            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36')
+
+        # DANGER ZONE settings
+        options.add_argument('--ignore-certificate-errors')
+        options.add_argument('--allow-insecure-localhost')
+        options.add_argument('--ignore-urlfetcher-cert-requests')
+        options.add_argument('--disable-net-security')
+
+        # Configure experimental options
+        options.add_experimental_option('useAutomationExtension', False)
+        options.add_experimental_option('excludeSwitches', ['enable-automation'])
+
+        # Load extensions
+        options.add_extension(os.path.join(EXTENSIONS_PATH, 'chrome', 'nopecha.crx'))
+        options.add_extension(os.path.join(EXTENSIONS_PATH, 'chrome', 'accept-all-cookies.crx'))
+
+        return webdriver.Chrome(options=options)
+
+    def close_all(self):
+        with self._lock:
+            while not self.available_drivers.empty():
+                driver = self.available_drivers.get()
+                try:
+                    driver.quit()
+                except:
+                    pass
+
+            for driver in list(self.used_drivers):
+                try:
+                    driver.quit()
+                except:
+                    pass
+            self.used_drivers.clear()
+
+
+# Initialize the pool once
+chrome_driver_pool = ChromeDriverPool()
+
+
 def scrape_urls(urls):
-    driver = init_web_driver()
-    DRIVER_REGISTRY.append(driver)
+    """
+    Scrape multiple URLs in parallel using a Chrome driver from the pool.
+    First opens all tabs concurrently, then processes them separately for maximum efficiency.
+    """
+    if not urls:
+        return []
 
-    initial_window = driver.current_window_handle
+    driver = chrome_driver_pool.get_driver()
 
-    results = []
+    try:
+        # Remember the initial tab/window handle
+        initial_handle = driver.current_window_handle
+        initial_handles = set(driver.window_handles)
 
-    # Phase 1: Load all URLs in new tabs simultaneously
-    for index, url in enumerate(urls):
-        # Open a new tab
+        results = []
+        tab_info = {}  # Will store {handle: url} mapping
+
+        # PHASE 1: Open all tabs in parallel
+        print(f"Opening {len(urls)} tabs in parallel")
+        for index, url in enumerate(urls):
+            try:
+                tab_name = f"tab{index}"
+                print(f"Opening tab for {url}")
+                driver.execute_script(f"window.open('{url}', '{tab_name}');")
+            except Exception as e:
+                print(f"Error opening tab for {url}: {e}")
+
+        # Get all new tab handles
+        all_handles = driver.window_handles
+        new_handles = [h for h in all_handles if h not in initial_handles]
+
+        # PHASE 2: Let all tabs load while scrolling through each
+        # Map handles to their URLs and begin scrolling in each
+        for handle in new_handles:
+            try:
+                driver.switch_to.window(handle)
+                current_url = driver.current_url
+                tab_info[handle] = current_url
+                print(f"Starting scroll on {current_url}")
+
+                # Start scrolling in this tab to trigger lazy-loaded content
+                scroll_thread = threading.Thread(target=scroll_in_background, args=(driver,))
+                scroll_thread.daemon = True
+                scroll_thread.start()
+
+            except Exception as e:
+                print(f"Error switching to tab: {e}")
+
+        # Allow some time for all tabs to load their content
+        time.sleep(1.5)  # Adjust this value based on your needs
+
+        # PHASE 3: Process each tab to extract content
+        for handle in new_handles:
+            try:
+                driver.switch_to.window(handle)
+                url = tab_info.get(handle, driver.current_url)
+
+                print(f"Processing content from {url}")
+
+                try:
+                    # Extract content
+                    readable_text = extract_relevant_content(driver.page_source)
+                    links = categorize_links(url, driver.page_source)
+
+                    # Handle CAPTCHA and cookie prompts
+                    if ("verify" in readable_text.lower() and "human" in readable_text.lower()) or (
+                            "accept" in readable_text.lower() and "cookies" in readable_text.lower()):
+                        time.sleep(.5)
+                        readable_text = extract_relevant_content(driver.page_source)
+
+                    # Clean up the text
+                    sparse_text = re.sub(r'\n+', '\n', readable_text).strip()
+                    deduplicated_text = '\n'.join(sorted(set(sparse_text.splitlines()), key=sparse_text.splitlines().index))
+
+                except Exception as e:
+                    print(f"Error extracting content: {e}")
+                    deduplicated_text = f"! ERROR ACCESSING WEBSITE: {str(e)}"
+                    links = ""
+
+                # Add the result
+                results.append(
+                    f"!# WEBSITE CONTENTS FOR URL={url}:\n\n"
+                    f"{deduplicated_text}\n\n"
+                    f"!# END OF WEBSITE CONTENTS FOR URL={url}\n\n"
+                )
+
+                # Close this tab after processing
+                driver.close()
+
+            except Exception as e:
+                print(f"Error processing tab {handle}: {e}")
+                try:
+                    # Try to close the tab if it's still open
+                    driver.close()
+                except:
+                    pass
+
+        # Switch back to the initial tab
         try:
-            print(f"Loading {url} in Chrome Driver {len(DRIVER_REGISTRY)} Tab {index}")
-            driver.execute_script(f"window.open('{url}', 'tab{index}');")
+            driver.switch_to.window(initial_handle)
         except Exception as e:
-            print(f"Loading {url} in Chrome Driver {len(DRIVER_REGISTRY)} Tab {index} failed:\n{e}")
+            print(f"Error switching back to initial tab: {e}")
 
-    # Phase 2: Process each tab
-    for window in driver.window_handles:
-        if window == initial_window:
-            continue
+        return results
 
-        # Switch to the new tab
-        driver.switch_to.window(window)
+    finally:
+        # Return the driver to the pool
+        chrome_driver_pool.return_driver(driver)
 
-        # Start a new thread for scrolling the page to the bottom while it loads
-        scroll_to_bottom(driver)
 
-        url = driver.current_url
-        print(f"Processing {url}")
+def scroll_in_background(driver, max_heights_scrolled=6, scroll_interval=0.5):
+    """
+    Scroll the page in the background to trigger lazy-loading of content.
+    This function is meant to be run in a separate thread.
+    """
+    try:
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        step = 0
 
-        try:
-            readable_text = extract_relevant_content(driver.page_source)
+        # No doom-scrolling!
+        while step < max_heights_scrolled:
+            # Scroll down to the bottom of the page
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
-            # TODO Return links for citations later.
-            links = categorize_links(url, driver.page_source)
+            time.sleep(scroll_interval)
 
-            if ("verify" in readable_text.lower() and "human" in readable_text.lower()) or (
-                    "accept" in readable_text.lower() and "cookies" in readable_text.lower()):
-                time.sleep(.5)  # Allow more time for CAPTCHAs and cookies
-                readable_text = extract_relevant_content(driver.page_source)
+            # Calculate new scroll height and compare with last scroll height
+            new_height = driver.execute_script("return document.body.scrollHeight")
 
-            sparse_text = re.sub(r'\n+', '\n', readable_text).strip()
-            deduplicated_text = '\n'.join(sorted(set(sparse_text.splitlines()), key=sparse_text.splitlines().index))
+            if new_height >= last_height:
+                break
 
-        except Exception as e:
-            print(e)
-            deduplicated_text = "! ERROR ACCESSING WEBSITE!"
-            links = ""
-
-        results.append(
-            f"!# WEBSITE CONTENTS FOR URL={url}:\n\n"
-            f"{deduplicated_text}\n\n"
-            f"!# END OF WEBSITE CONTENTS FOR URL={url}\n\n"
-        )
-
-        driver.close()
-
-    driver.quit()
-    DRIVER_REGISTRY.remove(driver)
-
-    return results
+            last_height = new_height
+            step += 1
+    except Exception as e:
+        # Silently fail as this is a background task
+        print(f"Background scrolling error (non-critical): {e}")
 
 
 def quit_all_web_drivers():
-    for driver in DRIVER_REGISTRY:
-        driver.close()
-        driver.quit()
+    chrome_driver_pool.close_all()

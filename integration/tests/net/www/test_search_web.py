@@ -1,6 +1,6 @@
 import pytest
 
-from integration.net.www.surfer import search_web
+from integration.net.www.surfer import search_web, chrome_driver_pool
 
 # Test Configuration
 TEST_BASE_URL = "http://127.0.0.1:8888"  # Replace with a test environment URL if needed
@@ -36,3 +36,8 @@ def test_search_web(setup_env):
 
     for pattern in discovered_patterns:
         assert isinstance(pattern, str), "Each item in discovered patterns should be a string."
+
+    for i in range(2):
+        search_web(SEARCH_TERMS, SEMANTIC_PATTERNS, INSTRUCTIONS)
+
+    chrome_driver_pool.close_all()
