@@ -3,13 +3,13 @@ from pathlib import Path
 
 # TODO Replace with Windows registry.
 # Define the default path file
-INSTALL_PATH_FILE = os.path.join(Path.home(), ".agents", "install.path")
+INSTALL_PATH_FILE = os.path.join(Path.home(), '.agents', 'install.path')
 
 
 # Read the default installation path from the file if it exists
 def get_default_install_path():
     if os.path.exists(INSTALL_PATH_FILE):
-        with open(INSTALL_PATH_FILE, "r") as f:
+        with open(INSTALL_PATH_FILE, 'r') as f:
             return f.read().strip()
     return None  # Return None if the file doesn't exist
 
@@ -41,7 +41,7 @@ DEFAULT_ENV = os.getenv('DEFAULT_ENV', 'lsa')
 DEFAULT_LLM = os.getenv('DEFAULT_LLM', 'internlm_7b')
 
 CACHE_DIR = os.getenv('CACHE_DIR', '')
-LOGS_DIR = os.getenv('LOGS_DIR', fr"{INSTALL_PATH}\.agents\logs")
+LOGS_DIR = os.getenv('LOGS_DIR', fr'{INSTALL_PATH}\.agents\logs')
 
 DESKTOP_OVERLAY_TARGET_FPS = 240
 DESKTOP_OVERLAY_TARGET_FRAME_TIME = 1.0 / float(DESKTOP_OVERLAY_TARGET_FPS)
@@ -53,25 +53,28 @@ CADDY_PATH = os.getenv('CADDY_PATH', fr'{INSTALL_PATH}\tools\caddy-win\caddy.exe
 CADDYFILE_PATH = os.getenv('CADDY_PATH', fr'{INSTALL_PATH}\tools\caddy-win\caddyfile')
 CHROME_PATH = os.getenv('CHROME_PATH', fr'{INSTALL_PATH}\tools\chrome-win\chrome-agents.exe')
 OLLAMA_PATH = os.getenv('OLLAMA_PATH', fr'{INSTALL_PATH}\agents\ollama\ollama.exe')
-LLAMACPP_IMATRIX_PATH = os.getenv('LLAMACPP_QUANTIZE_PATH', fr'{INSTALL_PATH}\build\llama.cpp\build\bin\Release\llama-LLAMACPP_IMATRIX_PATH.exe')
+LLAMACPP_IMATRIX_PATH = os.getenv('LLAMACPP_IMATRIX_PATH', fr'{INSTALL_PATH}\build\llama.cpp\build\bin\Release\llama-imatrix.exe')
 LLAMACPP_QUANTIZE_PATH = os.getenv('LLAMACPP_QUANTIZE_PATH', fr'{INSTALL_PATH}\build\llama.cpp\build\bin\Release\llama-quantize.exe')
 OLLAMA_WORKING_DIR = os.getenv('OLLAMA_WORKING_DIR', fr'{INSTALL_PATH}\agents\ollama')
 LLAMACPP_WORKING_DIR = os.getenv('LLAMACPP_WORKING_DIR', fr'{INSTALL_PATH}\build\llama.cpp')
 
 EXTENSIONS_PATH = os.getenv('EXTENSIONS_PATH', fr'{INSTALL_PATH}\agents\res\integration\third_party\extensions')
 
-DEBUG_LOG = os.path.join(LOGS_DIR, "debug.log")
-USER_LOG = os.path.join(LOGS_DIR, "user.log")
-MONITOR_LOG = os.path.join(LOGS_DIR, "monitor.log")
-CADDY_LOG = os.path.join(LOGS_DIR, "caddy.log")
-OLLAMA_LOG = os.path.join(LOGS_DIR, "ollama.log")
-WEBUI_LOG = os.path.join(LOGS_DIR, "open_webui.log")
-SEARXNG_LOG = os.path.join(LOGS_DIR, "searxng.log")
-VAULTWARDEN_LOG = os.path.join(LOGS_DIR, "vaultwarden.log")
-OVERLAY_LOG = os.path.join(LOGS_DIR, "windows_overlay.log")
-TEMP_LOG = os.path.join(LOGS_DIR, "temp.log")
+DEBUG_LOG = os.path.join(LOGS_DIR, 'debug.log')
+USER_LOG = os.path.join(LOGS_DIR, 'user.log')
+MONITOR_LOG = os.path.join(LOGS_DIR, 'monitor.log')
+CADDY_LOG = os.path.join(LOGS_DIR, 'caddy.log')
+OLLAMA_LOG = os.path.join(LOGS_DIR, 'ollama.log')
+WEBUI_LOG = os.path.join(LOGS_DIR, 'open_webui.log')
+SEARXNG_LOG = os.path.join(LOGS_DIR, 'searxng.log')
+VAULTWARDEN_LOG = os.path.join(LOGS_DIR, 'vaultwarden.log')
+OVERLAY_LOG = os.path.join(LOGS_DIR, 'windows_overlay.log')
+TEMP_LOG = os.path.join(LOGS_DIR, 'temp.log')
 
 ALL_LOGS = [MONITOR_LOG, CADDY_LOG, OLLAMA_LOG, WEBUI_LOG, SEARXNG_LOG, VAULTWARDEN_LOG, OVERLAY_LOG, TEMP_LOG]
 
 NOPECHA_KEY = os.getenv('NOPECHA_KEY', '')
 DEFAULT_MODELFILE = fr'{INSTALL_PATH}\.agents\default.Modelfile'
+KGML_SYSTEM_PROMPT = fr'{INSTALL_PATH}\agents\knowledge\reasoning\prompts\KGML'
+
+WEB_SEARCH_MODEL = os.getenv('WEB_SEARCH_MODEL', 'qwen2.5-coder:14b')

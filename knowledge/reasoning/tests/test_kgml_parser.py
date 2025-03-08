@@ -2,6 +2,7 @@ import re
 
 import pytest
 
+from integration.data.config import KGML_SYSTEM_PROMPT
 from integration.net.ollama.ollama_api import prompt_model  # This is the real API call.
 from knowledge.reasoning.dsl.kgml_parser import parse_kgml
 
@@ -130,7 +131,7 @@ def test_model_returns_valid_kgml(initial_kg_serialized, reasoning_stats):
     """
     reasoning_stats["total_prompts"] += 1
     prompt = initial_kg_serialized
-    response = prompt_model(prompt, model=CURRENT_MODEL)
+    response = prompt_model(prompt, model=CURRENT_MODEL, system_prompt=KGML_SYSTEM_PROMPT)
     print("\n=== Model Response ===\n", response)
     if validate_kgml(response):
         reasoning_stats["valid_responses"] += 1
@@ -152,7 +153,7 @@ def test_reasoning_workflow(initial_kg_serialized, reasoning_stats):
     current_prompt = initial_kg_serialized
     for step in range(num_steps):
         reasoning_stats["total_prompts"] += 1
-        response = prompt_model(current_prompt, model=CURRENT_MODEL)
+        response = prompt_model(current_prompt, model=CURRENT_MODEL, system_prompt=KGML_SYSTEM_PROMPT)
         print(f"\n=== Step {step + 1} Response ===\n", response)
         if validate_kgml(response):
             reasoning_stats["valid_responses"] += 1
@@ -185,7 +186,7 @@ def test_edge_case_long_prompt(initial_kg_serialized, reasoning_stats):
     Test behavior with a very long prompt simulating many reasoning steps.
     """
     long_prompt = (initial_kg_serialized + "\n") * 5
-    response = prompt_model(long_prompt, model=CURRENT_MODEL)
+    response = prompt_model(long_prompt, model=CURRENT_MODEL, system_prompt=KGML_SYSTEM_PROMPT)
     print("\n=== Long Prompt Response ===\n", response)
     if validate_kgml(response):
         reasoning_stats["valid_responses"] += 1
@@ -222,7 +223,7 @@ def test_iterative_kg_evolution_verbose(initial_kg_serialized, reasoning_stats):
 
         # Increment prompt counter and get model response.
         reasoning_stats["total_prompts"] += 1
-        response = prompt_model(current_prompt, model=CURRENT_MODEL)
+        response = prompt_model(current_prompt, model=CURRENT_MODEL, system_prompt=KGML_SYSTEM_PROMPT)
         print("\nModel Response:", flush=True)
         print(response, flush=True)
 

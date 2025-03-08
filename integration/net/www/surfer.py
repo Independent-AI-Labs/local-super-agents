@@ -1,20 +1,20 @@
-import asyncio
-import json
 import os
-import queue
 import re
-import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
 
-import aiohttp
 from selenium import webdriver
 
 from integration.data.config import SEARXNG_BASE_URL, CHROME_PATH, EXTENSIONS_PATH
-from integration.net.util.web_util import get_request, extract_relevant_content, extract_urls_and_common_words, categorize_links
+from integration.net.util.semanting_filtering import digest_scraped_data, extract_web_content_with_semantics, format_semantic_content
+from integration.net.util.web_util import get_request, extract_urls_and_common_words, categorize_links
+from integration.net.www.chrome_driver_pool import ChromeDriverPool
 from knowledge.retrieval.hype.search.file_search import bulk_search_files
+
+# Initialize the pool once
+CHROME_DRIVER_POOL = ChromeDriverPool()
 
 
 def init_web_driver():
@@ -54,9 +54,26 @@ def init_web_driver():
     return driver
 
 
-def search_web(search_terms: list, semantic_patterns: List[str] | None = None, instructions: str = None, max_workers: int = 8) -> Tuple[List[str], List[str]]:
-    # Create a temporary directory to store files
-    temp_dir = tempfile.mkdtemp()
+def search_web(search_terms: list, semantic_patterns: List[str] | None = None, instructions: str = None, max_workers: int = 8) -> Tuple[
+    List[str], List[str]]:
+    """
+    Perform web searches for the given search terms and filter the results.
+
+    Args:
+        search_terms: List of search terms to query
+        semantic_patterns: Optional list of semantic patterns to filter results
+        instructions: Optional specific filtering instructions
+        max_workers: Maximum number of parallel worker threads
+        use_hype: Whether to use the HYPE system for filtering (legacy method)
+
+    Returns:
+        Tuple[List[str], List[str]]: Filtered data and discovered patterns
+    """
+    # Create a temporary directory to store files (used for HYPE method)
+    temp_dir = "results"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    filtered_data = []
     discovered_patterns = []
 
     try:
@@ -65,30 +82,52 @@ def search_web(search_terms: list, semantic_patterns: List[str] | None = None, i
             futures = [executor.submit(single_search, term) for term in search_terms]
             results = [future.result() for future in as_completed(futures)]
 
-        # Save search results to the temporary directory
-        for idx, result in enumerate(results):
+        # Extract all search results and common words
+        all_search_results = []
+        for result in results:
             search_result, top_common_words = result
+            all_search_results.extend(search_result)
+
+            # Add unique common words to discovered patterns
             for word in top_common_words:
-                if word not in semantic_patterns and word not in discovered_patterns:
-                    semantic_patterns.append(word)
-                    discovered_patterns.append(word)
+                if semantic_patterns is None or word not in semantic_patterns:
+                    if word not in discovered_patterns:
+                        discovered_patterns.append(word)
 
-            file_path = os.path.join(temp_dir, f'search_result_{idx}.txt')
+        for idx, search_result in enumerate(all_search_results):
+            file_path = os.path.join(temp_dir, f'search_result_{idx}_raw.txt')
             with open(file_path, 'w', encoding='utf-8') as f:
-                for website in search_result:
-                    f.write(website + "\n")
+                f.write(search_result)
 
-        # Call filter_scraped_data to process the data
-        filtered_data = filter_scraped_data(temp_dir, semantic_patterns, instructions)
+        # If no semantic patterns are provided, use top discovered patterns
+        patterns_to_use = semantic_patterns if semantic_patterns else discovered_patterns
+
+        filtered_data = digest_scraped_data(
+            all_search_results,
+            patterns_to_use,
+            instructions
+        )
+
+        for idx, search_result in enumerate(filtered_data):
+            file_path = os.path.join(temp_dir, f'search_result_{idx}_digested.txt')
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(search_result)
+
+    except Exception as e:
+        # Log the error and return empty results
+        print(f"Error in search_web: {str(e)}")
+        filtered_data = [f"Error during web search: {str(e)}"]
 
     finally:
-        # Delete the temporary directory after processing
-        if os.path.exists(temp_dir):
-            for file_name in os.listdir(temp_dir):
-                file_path = os.path.join(temp_dir, file_name)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-            os.rmdir(temp_dir)
+        # Clean up temporary directory if needed
+        # Commented out for debugging purposes
+        # if os.path.exists(temp_dir):
+        #     for file_name in os.listdir(temp_dir):
+        #         file_path = os.path.join(temp_dir, file_name)
+        #         if os.path.isfile(file_path):
+        #             os.remove(file_path)
+        #     os.rmdir(temp_dir)
+        pass
 
     return filtered_data, discovered_patterns
 
@@ -99,7 +138,7 @@ def single_search(search_term: str, max_results: int = 3) -> Tuple[List[str], Li
     return scrape_urls(urls_to_scrape[:max_results]), most_common_words
 
 
-def filter_scraped_data(temp_dir: str, semantic_patterns: List[str] | None = None, instructions: str = None) -> List[str]:
+def filter_scraped_data_hype(temp_dir: str, semantic_patterns: List[str] | None = None, instructions: str = None) -> List[str]:
     """
     Filters the scraped data from files stored in the temp directory based on semantic patterns and instructions.
 
@@ -159,140 +198,17 @@ def scroll_to_bottom(driver, max_heights_scrolled: int = 6):
         last_height = new_height
         step += 1
 
-
-class ChromeDriverPool:
-    def __init__(self, max_drivers=4):
-        self.max_drivers = max_drivers
-        self.available_drivers = queue.Queue()
-        self.used_drivers = set()
-        self._lock = threading.RLock()
-
-    def get_driver(self):
-        with self._lock:
-            if not self.available_drivers.empty():
-                driver = self.available_drivers.get()
-                self.used_drivers.add(driver)
-                return driver
-
-            if len(self.used_drivers) < self.max_drivers:
-                driver = self._create_new_driver()
-                self.used_drivers.add(driver)
-                return driver
-
-            # Wait for a driver to be returned
-            while self.available_drivers.empty():
-                time.sleep(0.1)
-            driver = self.available_drivers.get()
-            self.used_drivers.add(driver)
-            return driver
-
-    def return_driver(self, driver):
-        with self._lock:
-            if driver in self.used_drivers:
-                self.used_drivers.remove(driver)
-
-                try:
-                    # Just close all new tabs that were opened during scraping
-                    # Keep the original tab intact without trying to clear storage
-                    handles = driver.window_handles
-
-                    if len(handles) > 1:
-                        # Remember the first tab (usually the data: URL tab)
-                        original_handle = handles[0]
-
-                        # Close all other tabs
-                        for handle in handles[1:]:
-                            try:
-                                driver.switch_to.window(handle)
-                                driver.close()
-                            except Exception as e:
-                                print(f"Error closing tab: {e}")
-
-                        # Go back to the original tab
-                        driver.switch_to.window(original_handle)
-
-                    # Only clear cookies, don't touch localStorage or sessionStorage
-                    try:
-                        driver.delete_all_cookies()
-                    except Exception as e:
-                        print(f"Error clearing cookies: {e}")
-
-                    # Add back to available pool
-                    self.available_drivers.put(driver)
-                except Exception as e:
-                    print(f"Error cleaning up driver, will create a new one: {e}")
-                    try:
-                        driver.quit()  # Try to properly close the driver
-                    except:
-                        pass  # Ignore errors during quit
-
-                    # Create and add a fresh driver
-                    try:
-                        new_driver = self._create_new_driver()
-                        self.available_drivers.put(new_driver)
-                    except Exception as new_e:
-                        print(f"Failed to create replacement driver: {new_e}")
-
-    def _create_new_driver(self):
-        # Create a new Chrome driver with all the needed options
-        options = webdriver.ChromeOptions()
-        options.binary_location = CHROME_PATH
-
-        # Add all the options from init_web_driver()
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_argument('--disable-infobars')
-        options.add_argument('--disable-gpu')
-        options.add_argument(
-            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36')
-
-        # DANGER ZONE settings
-        options.add_argument('--ignore-certificate-errors')
-        options.add_argument('--allow-insecure-localhost')
-        options.add_argument('--ignore-urlfetcher-cert-requests')
-        options.add_argument('--disable-net-security')
-
-        # Configure experimental options
-        options.add_experimental_option('useAutomationExtension', False)
-        options.add_experimental_option('excludeSwitches', ['enable-automation'])
-
-        # Load extensions
-        options.add_extension(os.path.join(EXTENSIONS_PATH, 'chrome', 'nopecha.crx'))
-        options.add_extension(os.path.join(EXTENSIONS_PATH, 'chrome', 'accept-all-cookies.crx'))
-
-        return webdriver.Chrome(options=options)
-
-    def close_all(self):
-        with self._lock:
-            while not self.available_drivers.empty():
-                driver = self.available_drivers.get()
-                try:
-                    driver.quit()
-                except:
-                    pass
-
-            for driver in list(self.used_drivers):
-                try:
-                    driver.quit()
-                except:
-                    pass
-            self.used_drivers.clear()
-
-
-# Initialize the pool once
-chrome_driver_pool = ChromeDriverPool()
-
-
+# TODO Max tab wait time.
 def scrape_urls(urls):
     """
     Scrape multiple URLs in parallel using a Chrome driver from the pool.
     First opens all tabs concurrently, then processes them separately for maximum efficiency.
+    Uses enhanced content extraction and semantic HTML parsing for better results.
     """
     if not urls:
         return []
 
-    driver = chrome_driver_pool.get_driver()
+    driver = CHROME_DRIVER_POOL.get_driver()
 
     try:
         # Remember the initial tab/window handle
@@ -345,30 +261,41 @@ def scrape_urls(urls):
                 print(f"Processing content from {url}")
 
                 try:
-                    # Extract content
-                    readable_text = extract_relevant_content(driver.page_source)
-                    links = categorize_links(url, driver.page_source)
+                    # Use enhanced content extraction instead of the basic method
+                    page_source = driver.page_source
 
-                    # Handle CAPTCHA and cookie prompts
-                    if ("verify" in readable_text.lower() and "human" in readable_text.lower()) or (
-                            "accept" in readable_text.lower() and "cookies" in readable_text.lower()):
+                    # Check for CAPTCHA and cookie prompts
+                    if ("verify" in page_source.lower() and "human" in page_source.lower()) or (
+                            "accept" in page_source.lower() and "cookies" in page_source.lower()):
                         time.sleep(.5)
-                        readable_text = extract_relevant_content(driver.page_source)
+                        page_source = driver.page_source
 
-                    # Clean up the text
-                    sparse_text = re.sub(r'\n+', '\n', readable_text).strip()
-                    deduplicated_text = '\n'.join(sorted(set(sparse_text.splitlines()), key=sparse_text.splitlines().index))
+                    # Extract links (we'll keep this function as it's not related to content extraction)
+                    links = categorize_links(url, page_source)
+
+                    # Use enhanced semantic extraction instead of basic extraction
+                    try:
+                        semantic_data = extract_web_content_with_semantics(page_source, url)
+                        formatted_content = format_semantic_content(semantic_data)
+                    except Exception as extraction_error:
+                        print(f"Error with enhanced extraction: {extraction_error}")
+                        # Fall back to basic extraction if enhanced extraction fails
+                        from integration.net.util.web_util import extract_relevant_content
+                        readable_text = extract_relevant_content(page_source)
+                        sparse_text = re.sub(r'\n+', '\n', readable_text).strip()
+                        formatted_content = sparse_text
 
                 except Exception as e:
                     print(f"Error extracting content: {e}")
-                    deduplicated_text = f"! ERROR ACCESSING WEBSITE: {str(e)}"
+                    formatted_content = f"! ERROR ACCESSING WEBSITE: {str(e)}"
                     links = ""
 
                 # Add the result
                 results.append(
-                    f"!# WEBSITE CONTENTS FOR URL={url}:\n\n"
-                    f"{deduplicated_text}\n\n"
-                    f"!# END OF WEBSITE CONTENTS FOR URL={url}\n\n"
+                    f"🠶 WEBSITE CONTENTS FOR URL={url}:\n\n"
+                    f"{formatted_content}\n\n"
+                    f"🠶 LINKS FROM WEBSITE:\n{links}\n\n"
+                    f"🠶 END OF WEBSITE CONTENTS FOR URL={url}\n\n"
                 )
 
                 # Close this tab after processing
@@ -392,7 +319,7 @@ def scrape_urls(urls):
 
     finally:
         # Return the driver to the pool
-        chrome_driver_pool.return_driver(driver)
+        CHROME_DRIVER_POOL.return_driver(driver)
 
 
 def scroll_in_background(driver, max_heights_scrolled=6, scroll_interval=0.5):
@@ -425,4 +352,4 @@ def scroll_in_background(driver, max_heights_scrolled=6, scroll_interval=0.5):
 
 
 def quit_all_web_drivers():
-    chrome_driver_pool.close_all()
+    CHROME_DRIVER_POOL.close_all()

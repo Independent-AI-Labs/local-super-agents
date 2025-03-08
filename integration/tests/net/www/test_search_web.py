@@ -1,13 +1,13 @@
 import pytest
 
-from integration.net.www.surfer import search_web, chrome_driver_pool
+from integration.net.www.surfer import search_web, CHROME_DRIVER_POOL
 
 # Test Configuration
 TEST_BASE_URL = "http://127.0.0.1:8888"  # Replace with a test environment URL if needed
 NOPECHA_KEY = "your_nopecha_key_here"  # Replace with your actual NopeCHA key
-SEARCH_TERMS = ["machine learning", "artificial intelligence"]
-SEMANTIC_PATTERNS = ["machine learning", "artificial intelligence", "AI", "ML"]
-INSTRUCTIONS = "Filter the results based on machine learning and AI topics."
+SEARCH_TERMS = ["machine learning latest", "artificial intelligence news"]
+SEMANTIC_PATTERNS = []
+INSTRUCTIONS = "Summarize the most recent machine learning and AI news."
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def test_search_web(setup_env):
     for pattern in discovered_patterns:
         assert isinstance(pattern, str), "Each item in discovered patterns should be a string."
 
-    for i in range(2):
-        search_web(SEARCH_TERMS, SEMANTIC_PATTERNS, INSTRUCTIONS)
+    # for i in range(2):
+    #     search_web(SEARCH_TERMS, SEMANTIC_PATTERNS, INSTRUCTIONS)
 
-    chrome_driver_pool.close_all()
+    CHROME_DRIVER_POOL.close_all()

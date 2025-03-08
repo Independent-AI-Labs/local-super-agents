@@ -1,17 +1,18 @@
 import ollama
 
 
-def prompt_model(message: str, model: str) -> str:
+def prompt_model(message: str, model: str, system_prompt: str = None) -> str:
     # Initialize the Ollama client
     client = ollama.Client()
 
-    # Read the system prompt from file
-    system_prompt_path = "..\prompts\SYSTEM"
-    try:
-        with open(system_prompt_path, "r", encoding="utf-8") as file:
-            system_prompt = file.read().strip()
-    except FileNotFoundError:
-        system_prompt = "You are an AI assistant."
+    if system_prompt and len(system_prompt) > 0:
+        try:
+            with open(system_prompt, "r", encoding="utf-8") as file:
+                system_prompt = file.read().strip()
+        except FileNotFoundError:
+            print(f"Loading '{system_prompt}' as the system prompt.")
+    else:
+        system_prompt = "You are a professional AI assistant."
 
     # Create the message payload with system prompt
     messages = [
@@ -23,7 +24,7 @@ def prompt_model(message: str, model: str) -> str:
     response = client.chat(
         model=model,
         messages=messages,
-        options={"context_length": 32768}  # Setting context length
+        options={"num_ctx": 32768, "num_predict": -1}  # Setting context length
     )
 
     # Extract and return the content of the assistant's reply
