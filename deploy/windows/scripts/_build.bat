@@ -13,8 +13,9 @@ REM Step 1: Copy the 7z installer into the build folder
 copy "C:\7z2409-x64.exe" build\
 
 REM ====================================================
-REM Step 2: Copy the "integration" directory into build\
+REM Step 2: Copy the relevant source directories into build\
 xcopy integration build\integration /s /e /i /q
+xcopy knowledge build\knowledge /s /e /i /q
 
 REM ====================================================
 REM Step 3: Copy the "res\integration" directory into build\res\integration
