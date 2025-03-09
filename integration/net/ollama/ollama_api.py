@@ -24,7 +24,7 @@ def prompt_model(message: str, model: str, system_prompt: str = None) -> str:
     response = client.chat(
         model=model,
         messages=messages,
-        options={"num_ctx": 32768, "num_predict": -1}  # Setting context length
+        options={"num_ctx": 32768, "num_predict": -1, "keep_alive": -1}  # Setting context length
     )
 
     # Extract and return the content of the assistant's reply

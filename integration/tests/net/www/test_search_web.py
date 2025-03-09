@@ -1,6 +1,6 @@
 import pytest
 
-from integration.net.www.surfer import search_web, CHROME_DRIVER_POOL
+from integration.net.www.chrome.chrome_surfer import search_web, CHROME_DRIVER_POOL
 
 # Test Configuration
 TEST_BASE_URL = "http://127.0.0.1:8888"  # Replace with a test environment URL if needed
