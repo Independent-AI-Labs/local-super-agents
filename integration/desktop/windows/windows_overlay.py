@@ -1,5 +1,4 @@
 import os
-
 import subprocess
 import threading
 import time
@@ -8,6 +7,7 @@ from pathlib import Path
 import win32gui
 from pynput import keyboard
 
+from compliance.services.logging_service import DEFAULT_LOGGER
 from integration.data.config import CHROME_PATH, OPEN_WEBUI_BASE_URL, DESKTOP_OVERLAY_TARGET_FRAME_TIME, OPEN_WEBUI_PORT, INSTALL_PATH
 from integration.desktop.models.desktop_target import DesktopTarget
 from integration.desktop.windows.action_manager import ActionManager
@@ -45,7 +45,7 @@ def on_press(key):
             # Toggle Fullscreen Mode
             if ACTION_MANAGER.current_action is None:
                 if hasattr(key, 'char') and key.char == '`':
-                    print("Toggle Fullscreen Mode (ALT + `) detected!")
+                    DEFAULT_LOGGER.log_debug("Toggle Fullscreen Mode (ALT + `) detected!")
                     OPEN_WEBUI_WINDOW.toggle_floating_mode()
 
             # Toggle Minimal Mode

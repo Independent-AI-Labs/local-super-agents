@@ -138,6 +138,7 @@ def create_logging_utility(name: str, log_file: Optional[str] = None, log_level=
         _utilities[name] = utility
         return utility
 
+
 def get_utility_logger(utility_name: str) -> logging.Logger:
     """
     Gets the logger of the utility itself.

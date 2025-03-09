@@ -1,9 +1,10 @@
+import locale
 import os
 import socket
-import locale
 import subprocess
 import time
 
+from compliance.services.logging_service import DEFAULT_LOGGER
 from integration.data.config import CONDA_PATH
 
 
@@ -57,7 +58,7 @@ def run_command(
         base_command += command
 
         # Log the full command being executed
-        print(f"Running command: {base_command}, cwd={working_dir}")
+        DEFAULT_LOGGER.log_debug(f"Running command: {base_command}, cwd={working_dir}")
 
         # Step 6: Elevate privileges if required
         if elevated_external:
@@ -81,7 +82,7 @@ def run_command(
         return process
 
     except FileNotFoundError as e:
-        print(f"Executable not found: {e}")
+        DEFAULT_LOGGER.log_debug(f"Executable not found: {e}")
         raise
     except Exception as e:
         print(f"Error running command: {e}")

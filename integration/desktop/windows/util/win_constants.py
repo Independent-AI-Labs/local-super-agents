@@ -222,7 +222,7 @@ def list_available_fonts():
     return installed_fonts
 
 
-# print(list_available_fonts())
+# DEFAULT_LOGGER.log_debug(list_available_fonts())
 
 
 def load_font_from_file(font_path, font_name, font_size):

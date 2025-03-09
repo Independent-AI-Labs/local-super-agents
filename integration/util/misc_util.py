@@ -1,9 +1,14 @@
+import hashlib
 import os
 import sys
 import tkinter as tk
 from tkinter import filedialog
+from typing import List, Optional
 
 import chardet
+import numpy as np
+
+from integration.data.config import INDEXED_DATA_DIR
 
 
 def detect_encoding(file_path):
@@ -126,3 +131,56 @@ def touch(log_file: str):
     if not os.path.exists(log_file):
         with open(log_file, 'w') as f:
             pass
+
+
+def vectorize_text(text_list: List[str]) -> np.ndarray:
+    """
+    Create a simple vector representation of a list of text strings.
+    This is a basic implementation that could be replaced with more sophisticated embedding techniques.
+
+    Args:
+        text_list: List of text strings to vectorize
+
+    Returns:
+        np.ndarray: Vector representation of the input text
+    """
+    if not text_list:
+        return np.zeros(1)
+
+    # Simple implementation: Join all text, hash it, and use the hash values as a vector
+    joined_text = " ".join(text_list).lower()
+    hash_val = hashlib.sha256(joined_text.encode()).digest()
+
+    # Convert bytes to numpy array of integers
+    vector = np.array([b for b in hash_val], dtype=np.uint8)
+    return vector
+
+
+def get_indexed_search_results_path(search_terms: List[str], semantic_patterns: Optional[List[str]] = None, instructions: Optional[str] = None, transient: Optional[bool] = False) -> str:
+    """
+    Generate a hierarchical directory path based on vectorized search terms, patterns, and instructions.
+
+    Args:
+        search_terms: List of search terms
+        semantic_patterns: Optional list of semantic patterns
+        instructions: Optional instructions string
+        transient: Whether to use a temp or a user-specified base directory.
+
+    Returns:
+        str: Path for storing persistent data
+    """
+    # Create vector representations
+    search_terms_vector = vectorize_text(search_terms)
+    patterns_vector = vectorize_text(semantic_patterns) if semantic_patterns else np.zeros(1)
+    instructions_vector = vectorize_text([instructions]) if instructions else np.zeros(1)
+
+    # Generate hashes from vectors
+    search_hash = hashlib.sha256(search_terms_vector.tobytes()).hexdigest()[:10]
+    patterns_hash = hashlib.sha256(patterns_vector.tobytes()).hexdigest()[:10]
+    instructions_hash = hashlib.sha256(instructions_vector.tobytes()).hexdigest()[:10]
+
+    # Create hierarchical path
+    base_dir = os.path.join(INDEXED_DATA_DIR, "web_search_results")
+    path = os.path.join(base_dir, f"search_{search_hash}", f"patterns_{patterns_hash}", f"instr_{instructions_hash}")
+
+    return path

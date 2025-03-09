@@ -18,6 +18,7 @@ from integration.desktop.windows.util.win_constants import (
     GUI_CLASS_NAME, GUI_WINDOW_TITLE,
     SMART_WINDOW_WIDTH, SMART_WINDOW_HEIGHT, get_mouse_pos
 )
+from compliance.services.logging_service import DEFAULT_LOGGER
 
 
 # TODO Experimental pydantic-based functional class definitions.
@@ -83,17 +84,17 @@ class SmartWindow(BaseModel):
 
         matching_windows = find_window_by_title(window_title)
         if not matching_windows:
-            print("Window not found!")
+            DEFAULT_LOGGER.log_debug("Window not found!")
             return
 
         self._floating_target_hwnd = matching_windows[0]
-        print(f"Found Open WebUI window: {self._floating_target_hwnd}")
+        DEFAULT_LOGGER.log_debug(f"Found Open WebUI window: {self._floating_target_hwnd}")
 
         # Create our borderless parent window
         self._floating_parent_hwnd = create_host_window(
             GUI_CLASS_NAME, GUI_WINDOW_TITLE, SMART_WINDOW_WIDTH, SMART_WINDOW_HEIGHT
         )
-        print(f"Created parent window: {self._floating_parent_hwnd}")
+        DEFAULT_LOGGER.log_debug(f"Created parent window: {self._floating_parent_hwnd}")
 
         # Go fullscreen to start, or you can choose to start in floating instead.
         # set_to_fullscreen(self._floating_parent_hwnd)
@@ -130,11 +131,11 @@ class SmartWindow(BaseModel):
 
         if self.floating_state:
             self.floating_state = False
-            print("Switching to fullscreen...")
+            DEFAULT_LOGGER.log_debug("Switching to fullscreen...")
             self._set_to_fullscreen()
         else:
             self.floating_state = True
-            print("Switching to floating...")
+            DEFAULT_LOGGER.log_debug("Switching to floating...")
             self._set_to_floating()
 
         self._resizing = False
@@ -161,13 +162,13 @@ class SmartWindow(BaseModel):
             target_height = SMART_WINDOW_HEIGHT
             target_width = SMART_WINDOW_WIDTH
             target_alpha = int(.9 * 255)
-            print("Exiting minimal state...")
+            DEFAULT_LOGGER.log_debug("Exiting minimal state...")
         else:
             # Go minimal
             target_height = SMART_WINDOW_HEIGHT // 2
             target_width = SMART_WINDOW_WIDTH
             target_alpha = int(.3 * 255)
-            print("Entering minimal state...")
+            DEFAULT_LOGGER.log_debug("Entering minimal state...")
 
         spring_animation(
             self._floating_parent_hwnd,

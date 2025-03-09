@@ -1,14 +1,14 @@
-import re
 import json
-
+import re
+import time
 from collections import Counter
+from typing import Dict, Any, Tuple, List
 from urllib.parse import urlparse, urljoin
 
 import requests
-
-from typing import Dict, Any, Tuple, List
-
 from bs4 import BeautifulSoup
+
+from knowledge.retrieval.hype.search.file_search import bulk_search_files
 
 
 def get_request(url: str, headers: Dict[str, str], params: Dict[str, Any]) -> str:
@@ -170,3 +170,93 @@ def categorize_links(url: str, page_source: str) -> str:
     result += "\n".join(f"    * {item}\n" for item in file_links)
 
     return result
+
+
+def scroll_in_background(driver, max_heights_scrolled=6, scroll_interval=0.5):
+    """
+    Scroll the page in the background to trigger lazy-loading of content.
+    This function is meant to be run in a separate thread.
+    """
+    try:
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        step = 0
+
+        # No doom-scrolling!
+        while step < max_heights_scrolled:
+            # Scroll down to the bottom of the page
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+            time.sleep(scroll_interval)
+
+            # Calculate new scroll height and compare with last scroll height
+            new_height = driver.execute_script("return document.body.scrollHeight")
+
+            if new_height >= last_height:
+                break
+
+            last_height = new_height
+            step += 1
+    except Exception as e:
+        # Silently fail as this is a background task
+        print(f"Background scrolling error (non-critical): {e}")
+
+
+def filter_scraped_data_hype(temp_dir: str, semantic_patterns: List[str] | None = None, instructions: str = None) -> List[str]:
+    """
+    Filters the scraped data from files stored in the temp directory based on semantic patterns and instructions.
+
+    :param temp_dir: The directory containing the files with scraped data.
+    :param semantic_patterns: A list of semantic patterns to filter the results.
+    :param instructions: Additional instructions to guide the filtering process.
+    :return: Filtered data as a string.
+    """
+    # Extract the search terms from the semantic patterns if provided
+    search_term_strings = semantic_patterns if semantic_patterns else []
+
+    # Run a bulk search on all the files in the temp directory
+    search_results = bulk_search_files(
+        root_dir=temp_dir,
+        search_term_strings=search_term_strings,
+        context_size_lines=8,  # Adjust the context size if necessary
+        large_file_size_threshold=512 * 1024 * 1024,  # 512MB
+        min_score=1,  # Minimum score threshold
+        and_search=False,  # Allow OR searches by default
+        exact_matches_only=True  # Allow inexact matches
+    )
+
+    # Collect the filtered data from the search results
+    filtered_data = []
+    for result in search_results:
+        # You can adjust the filtering logic here based on instructions
+        if result.common.score >= 1:  # You can modify the scoring threshold
+            filtered_data.append(f"URI: {result.common.uri}\nScore: {result.common.score}\n")
+
+            # File matches
+            if result.file_matches:
+                filtered_data.append(f"File: {result.file_matches.title}\n")
+                for line_number, match in zip(result.file_matches.line_numbers, result.file_matches.matches_with_context):
+                    filtered_data.append(f"Line {line_number}: {match}\n")
+
+    # Join all the filtered results into a string
+    return filtered_data
+
+
+def scroll_to_bottom(driver, max_heights_scrolled: int = 6):
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    step = 0
+
+    # No doom-scrolling!
+    while step < max_heights_scrolled:
+        # Scroll down to the bottom of the page
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+        time.sleep(.5)
+
+        # Calculate new scroll height and compare with last scroll height
+        new_height = driver.execute_script("return document.body.scrollHeight")
+
+        if new_height >= last_height:
+            break
+
+        last_height = new_height
+        step += 1

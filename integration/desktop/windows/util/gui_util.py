@@ -11,6 +11,7 @@ import win32con
 import win32gui
 import win32process
 
+from compliance.services.logging_service import DEFAULT_LOGGER
 from integration.desktop.models.icon_window_data import IconWindowData
 from integration.desktop.models.text_window_data import TextWindowData
 from integration.desktop.windows.util.animation_util import (
@@ -539,7 +540,7 @@ def get_monitor_info_with_retries(
             if monitor_handle is not None:
                 return win32api.GetMonitorInfo(monitor_handle)
         except win32api.error as e:
-            print(f"Attempt {attempt + 1} failed: {e}")
+            DEFAULT_LOGGER.log_debug(f"Attempt {attempt + 1} failed: {e}")
             time.sleep(delay)
 
     raise RuntimeError(
@@ -604,7 +605,7 @@ def get_clipboard_text() -> str | None:
         text = win32clipboard.GetClipboardData(win32clipboard.CF_TEXT)
         return text.decode("utf-8")
     except Exception as e:
-        print(f"Error retrieving clipboard text: {e}")
+        DEFAULT_LOGGER.log_debug(f"Error retrieving clipboard text: {e}")
         return None
     finally:
         win32clipboard.CloseClipboard()

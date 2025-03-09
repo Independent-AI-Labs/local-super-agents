@@ -8,7 +8,7 @@ from integration.data.config import DEBUG_LOG
 from integration.util.misc_util import select_and_list_directory_contents, list_directory_contents
 from quantbench.manage.qb_config import get_available_quant_types, SupportedFeatures
 from quantbench.manage.state_manager import StateManager, ProcessStatus
-from quantbench.services.logging_service import LoggingService
+from compliance.services.logging_service import LoggingService
 from quantbench.services.process_service import ProcessService
 
 

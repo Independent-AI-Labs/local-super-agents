@@ -19,6 +19,7 @@ from knowledge.retrieval.hype.util.search_result_util import (
     search_file, process_structured_matches
 )
 from knowledge.retrieval.hype.util.search_util import build_automaton, aho_corasick_match, preprocess_search_term_list, parse_search_terms
+from compliance.services.logging_service import DEFAULT_LOGGER
 
 
 def search_in_structured_file_block(
@@ -37,7 +38,7 @@ def search_in_structured_file_block(
     timings = {}
     start_total = time.time()
 
-    # print(f"Searching block ID {block_id}")
+    # DEFAULT_LOGGER.log_debug(f"Searching block ID {block_id}")
 
     block_data_string = read_mmap(file_path, start_offset, end_offset)
     timings['file_open_and_mmap'] = time.time() - start_total
@@ -55,13 +56,13 @@ def search_in_structured_file_block(
 
         search_results = process_structured_matches(block_matches, min_score, metadata_filename, block_data_string, file_path)
 
-        # print(f"MATCHES: {len(block_matches)} RESULTS: {len(search_results)}")
+        # DEFAULT_LOGGER.log_debug(f"MATCHES: {len(block_matches)} RESULTS: {len(search_results)}")
 
         timings['process_matches'] = time.time() - start_time
         timings['total_time'] = time.time() - start_total
 
         if search_results:
-            # print(search_results)
+            # DEFAULT_LOGGER.log_debug(search_results)
             results_queue.put(search_results)
 
     timings['process_matches'] = time.time() - start_time
@@ -153,7 +154,7 @@ def search_structured_data_batched(
     else:
         # Revert back to the threaded implementation as the performance gains will not be significant enough to overcome the
         # process creation overhead...
-        print("(Relatively) small file. Reverting back to Threaded search...")
+        DEFAULT_LOGGER.log_debug("(Relatively) small file. Reverting back to Threaded search...")
         return search_structured_data_threaded(file_path, metadata_dir, search_terms, min_score)
 
     chunks = [block_offsets[i:i + chunk_size] for i in range(0, len(block_offsets), chunk_size)]
@@ -243,7 +244,7 @@ def batch_search_blocks(
                 available_memory = psutil.virtual_memory().available * free_memory_usage_limit
 
                 if required_memory > available_memory:
-                    print(f"Waiting for memory to free up... Required: {required_memory}, Available: {available_memory}")
+                    DEFAULT_LOGGER.log_debug(f"Waiting for memory to free up... Required: {required_memory}, Available: {available_memory}")
                     time.sleep(0.1)  # Wait and re-check memory availability
                     break  # Exit the inner while loop to re-check all conditions
 

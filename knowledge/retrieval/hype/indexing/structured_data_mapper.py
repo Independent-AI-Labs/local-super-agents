@@ -169,7 +169,7 @@ def split_structured_data_file(
                 mm.seek(start_offset)
 
                 start_offset = header_length
-                print(f"Header found. Starting from byte offset: {start_offset}")
+                DEFAULT_LOGGER.log_debug(f"Header found. Starting from byte offset: {start_offset}")
 
             current_position = start_offset
 
@@ -210,14 +210,14 @@ def split_structured_data_file(
 
                     # Store the offsets for the block
                     offsets.append((current_position, match_start))
-                    # print(f"Valid block end found at byte offset: {match_start}")
+                    # DEFAULT_LOGGER.log_debug(f"Valid block end found at byte offset: {match_start}")
 
                     # Update the current position to start after the match
                     current_position = match_start + len(DEFAULT_ITEM_BREAK_SEQUENCE_STR)
                 else:
                     # If no valid match is found, move to the end of the file
                     offsets.append((current_position, file_size))
-                    print(f"No valid UID found after byte offset: {current_position}")
+                    DEFAULT_LOGGER.log_debug(f"No valid UID found after byte offset: {current_position}")
                     break
 
     # Save the offsets to a CSV file
@@ -287,7 +287,7 @@ def index_structured_data_batched(
     else:
         # Revert back to the threaded implementation as the performance gains will not be significant enough to overcome the
         # process creation overhead...
-        print("Small file. Reverting back to non-batched indexing...")
+        DEFAULT_LOGGER.log_debug("Small file. Reverting back to non-batched indexing...")
         return index_structured_data(file_path, block_offsets, metadata_output_dir, item_start_validation_pattern_str)
 
     block_offset_chunks = [block_offsets[i:i + chunk_size] for i in range(0, len(block_offsets), chunk_size)]
@@ -344,12 +344,12 @@ def batch_index_blocks(
                 available_memory = psutil.virtual_memory().available * free_memory_usage_limit
 
                 if required_memory > available_memory:
-                    print(f"Waiting for memory to free up... Required: {required_memory}, Available: {available_memory}")
+                    DEFAULT_LOGGER.log_debug(f"Waiting for memory to free up... Required: {required_memory}, Available: {available_memory}")
                     time.sleep(0.1)  # Wait and re-check memory availability
                     continue  # Skip to the next iteration of the outer loop
 
                 # Submit task to the executor
-                # print(f"Starting process {last_submitted}... Available memory: {available_memory}")
+                # DEFAULT_LOGGER.log_debug(f"Starting process {last_submitted}... Available memory: {available_memory}")
                 future = executor.submit(
                     batch_index,
                     file_path,
@@ -372,7 +372,7 @@ def batch_index_blocks(
             future.result()
 
     process_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-    print(f"{sum([len(blocks) for blocks in block_offset_chunks])} blocks processed in {process_time:.2f} ms.\n")
+    DEFAULT_LOGGER.log_debug(f"{sum([len(blocks) for blocks in block_offset_chunks])} blocks processed in {process_time:.2f} ms.\n")
 
 
 def batch_index(
@@ -461,14 +461,14 @@ def update_offsets(file_path: str, metadata_output_dir: str):
         new_offsets_data.append(new_row)
 
     # Print new_offsets_data for debugging purposes
-    print(new_offsets_data)
+    DEFAULT_LOGGER.log_debug(new_offsets_data)
 
     # Write the updated offsets data back to offsets.csv
     with open(offsets_file_path, 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(new_offsets_data)
 
-    print("Offsets file updated successfully.")
+    DEFAULT_LOGGER.log_debug("Offsets file updated successfully.")
 
 
 def is_valid_header(header: list) -> bool:
@@ -613,7 +613,7 @@ def index_structured_data_file(
                     start_index = last_valid_start
                     end_index = break_position
 
-                    # print(f"====== {block_data_string[end_index - 32:end_index]}")
+                    # DEFAULT_LOGGER.log_debug(f"====== {block_data_string[end_index - 32:end_index]}")
 
                     # TODO This needs to be replaced with a user-configurable fixed-size metadata parameter list.
                     # Currently it is hardcoded to annotate the start and end string indices of items inside

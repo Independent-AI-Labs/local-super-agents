@@ -34,7 +34,7 @@ LABEL_METADATA = "🠶 METADATA:"
 LABEL_WEBSITE_CONTENTS = "🠶 WEBSITE CONTENTS FOR URL="
 LABEL_LINKS = "🠶 LINKS FROM WEBSITE:"
 LABEL_END_WEBSITE = "🠶 END OF WEBSITE CONTENTS FOR URL="
-LABEL_EXTRACTED_LINKS = "LINKS:"
+LABEL_EXTRACTED_LINKS = "🠶 LINKS:"
 
 # Maximum token size for LLM processing
 MAX_TOKEN_SIZE = 16000
@@ -594,7 +594,7 @@ Your task is to analyze the following web content and extract information relate
 {instructions if instructions else "Extract the most important and relevant information."}
 
 Return ONLY the crystallized content maintaining the original structure with section labels.
-Focus on the TITLE, HEADINGS, and CONTENT sections.
+
 Preserve the semantic structure and important details while condensing redundant information.
 
 WEB CONTENT:
@@ -675,6 +675,7 @@ def digest_scraped_data(results: List[str], semantic_patterns: List[str] = None,
             # Call the LLM to crystallize the information
             crystallized_chunk = prompt_model(prompt, model=WEB_SEARCH_MODEL)
             crystallized_results.append(crystallized_chunk)
+            print(crystallized_chunk)
         except Exception as e:
             # If LLM processing fails, keep the original chunk
             print(f"Error crystallizing content: {str(e)}")

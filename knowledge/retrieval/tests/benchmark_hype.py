@@ -41,7 +41,7 @@ def main():
 
     if not os.path.exists(metadata_dir):
         # Hardcoded message for the initial test data.
-        print("First run / initial setup required.\n\nStarted indexing of ~14GB (CSV) data / >70M unique items (rows).\n")
+        DEFAULT_LOGGER.log_debug("First run / initial setup required.\n\nStarted indexing of ~14GB (CSV) data / >70M unique items (rows).\n")
         index_data_file(structured_data_file, metadata_dir)
         index_data_file(structured_data_file_partial, metadata_dir)
 

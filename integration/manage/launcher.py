@@ -3,10 +3,11 @@ import time
 from multiprocessing import Process
 from pathlib import Path
 
+from compliance.services.logging_service import DEFAULT_LOGGER
 from integration.data.config import (
     OLLAMA_PATH, OLLAMA_LOG, WEBUI_LOG, LOGS_DIR, DEFAULT_ENV,
     OLLAMA_WORKING_DIR, OLLAMA_PORT, OPEN_WEBUI_PORT, OPEN_WEBUI_EXT_PORT,
-    WEBUI_SSL_CERT_FILE, WEBUI_SSL_KEY_FILE, CADDY_PATH, CADDYFILE_PATH, CADDY_LOG, OLLAMA_ENV, INSTALL_PATH, TEMP_LOG, DEFAULT_MODELFILE, OLLAMA_INTEL
+    WEBUI_SSL_CERT_FILE, WEBUI_SSL_KEY_FILE, CADDY_PATH, CADDYFILE_PATH, CADDY_LOG, OLLAMA_ENV, INSTALL_PATH, TEMP_LOG, OLLAMA_INTEL
 )
 from integration.desktop.windows import windows_overlay
 from integration.desktop.windows.util.shell_util import run_command, is_port_open, kill_process
@@ -20,18 +21,18 @@ def safe_terminate(proc, name="process"):
     if proc is None:
         return
     try:
-        print(f"[INFO] Terminating {name}...")
+        DEFAULT_LOGGER.log_debug(f"[INFO] Terminating {name}...")
         proc.terminate()  # Both Popen and Process support terminate()
         proc.wait(timeout=10)
-        print(f"[INFO] {name} terminated.")
+        DEFAULT_LOGGER.log_debug(f"[INFO] {name} terminated.")
     except Exception as e:
-        print(f"[ERROR] Failed to terminate {name} gracefully: {e}. Attempting to kill it...")
+        DEFAULT_LOGGER.log_debug(f"[ERROR] Failed to terminate {name} gracefully: {e}. Attempting to kill it...")
         try:
             proc.kill()
             proc.wait(timeout=5)
-            print(f"[INFO] {name} killed.")
+            DEFAULT_LOGGER.log_debug(f"[INFO] {name} killed.")
         except Exception as kill_e:
-            print(f"[ERROR] Could not kill {name}: {kill_e}")
+            DEFAULT_LOGGER.log_debug(f"[ERROR] Could not kill {name}: {kill_e}")
 
 
 def start_intel_ollama():

@@ -12,6 +12,7 @@ import win32con
 import win32gui
 from PIL import Image
 
+from compliance.services.logging_service import DEFAULT_LOGGER
 from integration.desktop.models.desktop_action import DesktopAction
 from integration.desktop.models.icon_window_data import IconWindowData
 from integration.desktop.models.text_window_data import TextWindowData
@@ -23,7 +24,7 @@ from integration.desktop.windows.util.win_constants import gdiplus, BLENDFUNCTIO
 def await_next_frame_if_needed(start_time, spring_frame_time):
     # end_time = time.time() - start_time
     # remaining_time = end_time - spring_frame_time
-    # print(f"WAITING FOR: {remaining_time:.2f} s")
+    # DEFAULT_LOGGER.log_debug(f"WAITING FOR: {remaining_time:.2f} s")
     #
     # if remaining_time > 0:
     #     time.sleep(spring_frame_time)
@@ -559,7 +560,7 @@ def cleanup_cached_frames(window_data: IconWindowData):
                 gdi32.DeleteObject(hbitmap)
                 gdi32.DeleteDC(mem_dc)
         except:
-            print("[ERROR] Failed to delete DC/bitmaps.")
+            DEFAULT_LOGGER.log_debug("[ERROR] Failed to delete DC/bitmaps.")
         window_data.hdc_screens = []
 
 
@@ -673,7 +674,7 @@ def draw_text_line_with_animation(hwnd: int, window_data: TextWindowData):
         if len(window_data.text_deque) > 0 and drawing_done:
             text = window_data.text_deque.popleft()
             drawing_done = False
-            print(f">>> {text}")
+            DEFAULT_LOGGER.log_debug(f">>> {text}")
 
             visibility_frame_count = 0
             opacity = 255

@@ -135,10 +135,10 @@ def parse_search_terms(search_term_strings: List[str], ref_ids: List[str] | None
         split = search_term_string.split(f"{ORDER_SEPARATOR}")
         if len(split) == 2:
             parsed_search_terms.append(SearchTerm(order=int(split[1]), text=split[0], ref_ids=ref_ids))
-            # print(f"ADDED {split[0]}{ORDER_SEPARATOR}{int(split[1])}")
+            # DEFAULT_LOGGER.log_debug(f"ADDED {split[0]}{ORDER_SEPARATOR}{int(split[1])}")
         else:
             parsed_search_terms.append(SearchTerm(order=0, text=split[0], ref_ids=ref_ids))
-            # print(f"ADDED 0{ORDER_SEPARATOR}{split[0]}")
+            # DEFAULT_LOGGER.log_debug(f"ADDED 0{ORDER_SEPARATOR}{split[0]}")
 
     return parsed_search_terms
 
@@ -231,7 +231,7 @@ def aho_corasick_match(automaton: ahocorasick.Automaton, text: str, min_score: f
         search_terms.append(search_term)
 
     if len(search_terms) > 0:
-        # print(f"MATCHES: {len(matches)}")
+        # DEFAULT_LOGGER.log_debug(f"MATCHES: {len(matches)}")
         score = calculate_advanced_search_score(search_terms, len(text), [pos for pos, _ in matches])
         if score >= min_score:
             return matches, score
@@ -581,7 +581,7 @@ def find_candidate_word_clusters(
     all_words = set()
     for i, result in enumerate(search_results[:max_results]):
         if time.time() - start_time > timeout:
-            print(f"Timeout reached after processing {i + 1} results.")
+            DEFAULT_LOGGER.log_debug(f"Timeout reached after processing {i + 1} results.")
             break
         if result.file_matches:
             all_words.update(process_text(result.file_matches.title))
@@ -589,10 +589,10 @@ def find_candidate_word_clusters(
                 all_words.update(process_text(match))
         elif result.structured_matches:
             all_words.update(process_text(result.structured_matches.item_content))
-        print(f"Processed result {i + 1}/{min(len(search_results), max_results)}")
+        DEFAULT_LOGGER.log_debug(f"Processed result {i + 1}/{min(len(search_results), max_results)}")
 
     all_words = sorted(all_words, key=lambda w: -word_freq[w])  # Sort words by frequency, descending
-    print(f"Total unique words: {len(all_words)}")
+    DEFAULT_LOGGER.log_debug(f"Total unique words: {len(all_words)}")
 
     def score_combination(combo: Tuple[str]) -> float:
         """
@@ -609,7 +609,7 @@ def find_candidate_word_clusters(
     for i in range(min_words, min(len(all_words) + 1, max_words + 1)):
         for combo in combinations(all_words[:50], i):  # Only consider top 50 most frequent words
             if time.time() - start_time > timeout:
-                print(f"Timeout reached after processing {processed} combinations.")
+                DEFAULT_LOGGER.log_debug(f"Timeout reached after processing {processed} combinations.")
                 return [' '.join(combo) for _, combo in sorted(top_combinations, reverse=True)]
 
             score = score_combination(combo)
@@ -620,7 +620,7 @@ def find_candidate_word_clusters(
 
             processed += 1
             if processed % 10000 == 0:
-                print(f"Processed {processed} combinations")
+                DEFAULT_LOGGER.log_debug(f"Processed {processed} combinations")
 
     print(f"Total execution time: {time.time() - start_time:.2f} seconds")
     return [' '.join(combo) for _, combo in sorted(top_combinations, reverse=True)]

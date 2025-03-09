@@ -2,7 +2,7 @@ import locale
 import os
 import sys
 
-from integration.util.logging_util import USER_LOGGER, DEBUG_LOGGER
+from compliance.util.logging_util import USER_LOGGER, DEBUG_LOGGER
 
 
 def sanitize_message(message):
@@ -67,3 +67,6 @@ class LoggingService:
                 return ''.join(lines[-max_lines:])
         except Exception as e:
             return f"Error reading log file: {str(e)}"
+
+
+DEFAULT_LOGGER = LoggingService.get_instance()

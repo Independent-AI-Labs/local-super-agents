@@ -4,11 +4,13 @@ import time
 from ctypes.wintypes import RECT
 
 import win32api
-import win32gui
-import win32ui
 import win32con
+import win32gui
 import win32process
 import win32security
+import win32ui
+
+from compliance.services.logging_service import DEFAULT_LOGGER
 
 HIGHLIGHT_COLOR_RGB = (77, 187, 235)
 
@@ -46,9 +48,9 @@ def capture_window_screenshot(hwnd):
         # Save the bitmap to a file
         timestamp = int(time.time())
         bitmap.SaveBitmapFile(save_dc, f"window_screenshot_{timestamp}.bmp")
-        print(f"Screenshot saved as window_screenshot_{timestamp}.bmp")
+        DEFAULT_LOGGER.log_debug(f"Screenshot saved as window_screenshot_{timestamp}.bmp")
     except Exception as e:
-        print(f"Error capturing screenshot: {e}")
+        DEFAULT_LOGGER.log_debug(f"Error capturing screenshot: {e}")
     finally:
         # Cleanup GDI objects
         try:
@@ -61,7 +63,7 @@ def capture_window_screenshot(hwnd):
             if bitmap:
                 win32gui.DeleteObject(bitmap.GetHandle())  # Correct cleanup for bitmap
         except Exception as cleanup_error:
-            print(f"Error during cleanup: {cleanup_error}")
+            DEFAULT_LOGGER.log_debug(f"Error during cleanup: {cleanup_error}")
 
 
 def clear_and_destroy_highlight_window(highlight_hwnd):

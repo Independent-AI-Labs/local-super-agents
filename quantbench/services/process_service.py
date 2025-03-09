@@ -10,7 +10,7 @@ from quantbench.errors.quantization_error import QuantizationError
 from quantbench.manage.qb_config import GGUF_FILE_EXTENSION, CONVERT_HF_TO_GGUF_SCRIPT, SupportedFeatures, INPUT_MODEL_FILE_EXTENSION, IMATRIX_FILE_NAME, \
     IMATRIX_CUSTOM_FILE_NAME, IMATRIX_DATASET_FILE
 from quantbench.manage.state_manager import StateManager, ProcessStatus
-from quantbench.services.logging_service import LoggingService
+from compliance.services.logging_service import LoggingService
 
 
 class ProcessService:

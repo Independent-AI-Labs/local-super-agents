@@ -1,10 +1,11 @@
-import time
 import threading
+import time
 from typing import Dict, Tuple
 
 import win32gui
 
 from integration.desktop.models.desktop_action import DesktopAction
+from compliance.services.logging_service import DEFAULT_LOGGER
 
 # -------------------------------------------------------------------
 # GLOBALS
@@ -35,7 +36,7 @@ def draw_fading_border(hwnd: int, alpha: float, color: Tuple[int, int, int]):
     """
     # TODO: implement your actual drawing logic here
     # For demonstration, we’ll just print:
-    print(f"Drawing border on hwnd={hwnd} color={color}, alpha={alpha:.2f}")
+    DEFAULT_LOGGER.log_debug(f"Drawing border on hwnd={hwnd} color={color}, alpha={alpha:.2f}")
 
 
 def fade_border_loop(sleep_interval: float = 0.05, fade_step: float = 0.05):

@@ -42,6 +42,7 @@ DEFAULT_LLM = os.getenv('DEFAULT_LLM', 'internlm_7b')
 
 CACHE_DIR = os.getenv('CACHE_DIR', '')
 LOGS_DIR = os.getenv('LOGS_DIR', fr'{INSTALL_PATH}\.agents\logs')
+INDEXED_DATA_DIR = os.getenv('INDEXED_DATA_DIR', fr'{INSTALL_PATH}\.agents\indexed_data')
 
 DESKTOP_OVERLAY_TARGET_FPS = 240
 DESKTOP_OVERLAY_TARGET_FRAME_TIME = 1.0 / float(DESKTOP_OVERLAY_TARGET_FPS)
@@ -78,3 +79,4 @@ DEFAULT_MODELFILE = fr'{INSTALL_PATH}\.agents\default.Modelfile'
 KGML_SYSTEM_PROMPT = fr'{INSTALL_PATH}\agents\knowledge\reasoning\prompts\KGML'
 
 WEB_SEARCH_MODEL = os.getenv('WEB_SEARCH_MODEL', 'qwen2.5-coder:14b')
+TOP_N_WEB_SEARCH_RESULTS = os.getenv('TOP_N_WEB_SEARCH_RESULTS', 5)

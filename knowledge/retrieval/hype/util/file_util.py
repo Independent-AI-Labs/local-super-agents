@@ -142,10 +142,10 @@ def extract_file_content(file_path: str) -> Tuple[str, List[int], bool]:
         elif file_extension == '.pdf':
             return extract_pdf_content(file_path)
         else:
-            print(f"To Be Implemented: Support for {file_extension} files")
+            DEFAULT_LOGGER.log_debug(f"To Be Implemented: Support for {file_extension} files")
             return "", [], False
     except Exception as e:
-        print(f"Error processing {file_path}: {str(e)}")
+        DEFAULT_LOGGER.log_debug(f"Error processing {file_path}: {str(e)}")
         return "", [], False
 
 

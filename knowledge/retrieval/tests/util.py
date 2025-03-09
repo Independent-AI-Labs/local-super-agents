@@ -16,7 +16,7 @@ from retrieval.hype.data.models import UnifiedSearchResult
 
 
 def deploy_test_resources():
-    print("Preparing benchmark data, this might take a few minutes...")
+    DEFAULT_LOGGER.log_debug("Preparing benchmark data, this might take a few minutes...")
 
     zip_prefix = os.path.join("res", "test_resources.zip.")
 

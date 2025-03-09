@@ -142,10 +142,10 @@ def process_structured_matches(
                 result.common.search_term_match_counts[search_term.text] = result.common.search_term_match_counts.get(search_term.text, 0) + 1
                 result.common.matched_search_terms.append(search_term)
             else:
-                print(f"Warning: ITEM NOT FOUND FOR MATCH POSITION {match_index}!")
+                DEFAULT_LOGGER.log_debug(f"Warning: ITEM NOT FOUND FOR MATCH POSITION {match_index}!")
                 continue
 
-    # print(unique_item_results)
+    # DEFAULT_LOGGER.log_debug(unique_item_results)
 
     final_results = []
 
@@ -154,7 +154,7 @@ def process_structured_matches(
                                                                      [pos for pos, _ in search_term_matches])
 
         if unique_result.common.score >= min_score:
-            # print(unique_result.common.score)
+            # DEFAULT_LOGGER.log_debug(unique_result.common.score)
             final_results.append(unique_result)
 
     return final_results
