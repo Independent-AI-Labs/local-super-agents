@@ -10,7 +10,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from knowledge.reasoning.tests.util.kgml_test_result_ui_util import DEFAULT_BASE_DIR
+from knowledge.reasoning.tests.util.kgml_test_result_viewer_util import DEFAULT_BASE_DIR
 from knowledge.reasoning.tests.util.kgml_test_result_viewer import create_ui
 
 # Configure logging

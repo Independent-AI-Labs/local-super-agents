@@ -102,7 +102,7 @@ def read_mmap(file_path: str, start_offset: int, end_offset: int) -> str:
     :param end_offset: The end offset (in bytes) to read to.
     :return: The string content read from the specified file portion.
     """
-    with open(file_path, 'r+b', buffering=0) as f:
+    with open(file_path, 'r+b', buffering=0, 'utf-8') as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
         mm.seek(start_offset)
         block_data = mm.read(end_offset - mm.tell())
@@ -180,7 +180,7 @@ def extract_pdf_content(file_path: str) -> Tuple[str, List[int], bool]:
     Returns:
         Tuple[str, List[int]]: Extracted content as a string and list of line start indices.
     """
-    with open(file_path, 'rb', buffering=0) as file:
+    with open(file_path, 'rb', buffering=0, 'utf-8') as file:
         pdf_reader = PyPDF2.PdfFileReader(file)
         text = []
         line_indices = [0]

@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG)
 ###############################################################################
 
 class KGNode(BaseModel):
-    uid: str
+    uid: Optional[str]
     type: Optional[str] = None
     meta_props: Dict[str, Any] = {}
     # Added audit trail / provenance fields
@@ -60,7 +60,7 @@ class FilePersistenceBackend(PersistenceBackend):
         kg.logger.debug(f"Graph saved to {self.file_path}")
 
     def load(self) -> "KnowledgeGraph":
-        with open(self.file_path, "r") as f:
+        with open(self.file_path, "r", 'utf-8') as f:
             data = json.load(f)
         graph = nx.node_link_graph(data, edges="links")
         kg = KnowledgeGraph()

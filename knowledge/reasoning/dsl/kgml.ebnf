@@ -7,7 +7,6 @@
     • U►, ◄  = Update a NODE or LINK.
     • D►, ◄  = Delete a NODE or LINK.
     • E►, ◄  = Evaluate a NODE.
-    • N►, ◄  = Navigate the Knowledge Graph (optionally with a timeout).
 
   Control Blocks:
     • IF►, ELIF►, ELSE►, ◄ = Conditional execution blocks.
@@ -31,14 +30,12 @@ statement       = command | control | kg_block ;
 command         = create_command
                 | update_command
                 | delete_command
-                | evaluate_command
-                | navigate_command ;
+                | evaluate_command ;
 
 create_command  = "C►" , ws , entity_type , ws , uid , ws , instruction , ws, "◄";
 update_command  = "U►" , ws , entity_type , ws , uid , ws , instruction , ws, "◄";
 delete_command  = "D►" , ws , entity_type , ws , uid , ws , instruction , ws, "◄";
 evaluate_command= "E►" , ws , entity_type , ws , uid , ws , instruction , ws, "◄";
-navigate_command= "N►" , ws , [ timeout , ws ] , instruction , ws, "◄";
 
 entity_type     = "NODE" | "LINK" ;
 uid             = identifier ;

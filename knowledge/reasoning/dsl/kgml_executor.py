@@ -2,7 +2,8 @@ import logging
 from typing import Any, Dict, Union
 
 from knowledge.graph.kg_models import KGNode, KGEdge, KnowledgeGraph
-from knowledge.reasoning.dsl.kgml_parser import parse_kgml, Program, SimpleCommand, ConditionalCommand, LoopCommand
+from knowledge.reasoning.dsl.kgml_parser import Parser, tokenize, Program, SimpleCommand, ConditionalCommand, LoopCommand, KGBlock, KGNodeDeclaration, \
+    KGEdgeDeclaration
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +54,10 @@ class KGMLExecutor:
         then executing each statement.
         """
         try:
-            ast = parse_kgml(kgml_code)
+            # Updated to use the new Parser class
+            tokens = tokenize(kgml_code)
+            parser = Parser(tokens)
+            ast = parser.parse_program()
             return self.execute_ast(ast)
         except Exception as e:
             logger.error(f"KGML execution failed: {e}")
@@ -72,10 +76,10 @@ class KGMLExecutor:
 
         return self.context
 
-    def execute_statement(self, statement: Union[SimpleCommand, ConditionalCommand, LoopCommand]) -> Any:
+    def execute_statement(self, statement: Union[SimpleCommand, ConditionalCommand, LoopCommand, KGBlock]) -> Any:
         """
         Execute a single KGML statement which can be a simple command,
-        conditional, or loop.
+        conditional, loop, or KG block.
         """
         if isinstance(statement, SimpleCommand):
             return self.execute_simple_command(statement)
@@ -83,8 +87,99 @@ class KGMLExecutor:
             return self.execute_conditional(statement)
         elif isinstance(statement, LoopCommand):
             return self.execute_loop(statement)
+        elif isinstance(statement, KGBlock):
+            return self.execute_kg_block(statement)
         else:
             raise TypeError(f"Unknown statement type: {type(statement)}")
+
+    def execute_kg_block(self, block: KGBlock) -> Any:
+        """
+        Execute a KG block by processing all declarations within it.
+        """
+        results = []
+        for declaration in block.declarations:
+            if isinstance(declaration, KGNodeDeclaration):
+                result = self.execute_kg_node_declaration(declaration)
+            elif isinstance(declaration, KGEdgeDeclaration):
+                result = self.execute_kg_edge_declaration(declaration)
+            else:
+                raise TypeError(f"Unknown declaration type in KG block: {type(declaration)}")
+            results.append(result)
+
+        self.context.log_execution("KG", {"declarations_count": len(block.declarations)}, results)
+        return results
+
+    def execute_kg_node_declaration(self, node_decl: KGNodeDeclaration) -> Any:
+        """
+        Process a KGNODE declaration by creating or updating the node in the KG.
+        """
+        # Extract node type and other metadata
+        node_type = node_decl.fields.get("type", "GenericNode")
+        meta_props = {k: v for k, v in node_decl.fields.items() if k != "type"}
+
+        # Check if node already exists
+        existing_node = self.kg.get_node(node_decl.uid)
+
+        if existing_node:
+            # Update existing node
+            properties = {"type": node_type, "meta_props": meta_props}
+            self.kg.update_node(node_decl.uid, properties)
+            result = {"status": "updated", "node_id": node_decl.uid}
+        else:
+            # Create new node
+            node = KGNode(uid=node_decl.uid, type=node_type, meta_props=meta_props)
+            self.kg.add_node(node)
+            result = {"status": "created", "node_id": node_decl.uid}
+
+        self.context.log_execution("KGNODE", {"uid": node_decl.uid, "fields": node_decl.fields}, result)
+        return result
+
+    def execute_kg_edge_declaration(self, edge_decl: KGEdgeDeclaration) -> Any:
+        """
+        Process a KGLINK declaration by creating or updating the edge in the KG.
+        """
+        # Extract edge type and other metadata
+        edge_type = edge_decl.fields.get("type", "GenericLink")
+        meta_props = {k: v for k, v in edge_decl.fields.items() if k != "type"}
+
+        # Check if source and target nodes exist
+        source_node = self.kg.get_node(edge_decl.source_uid)
+        target_node = self.kg.get_node(edge_decl.target_uid)
+
+        if not source_node:
+            raise ValueError(f"Source node not found: {edge_decl.source_uid}")
+        if not target_node:
+            raise ValueError(f"Target node not found: {edge_decl.target_uid}")
+
+        # Check if edge already exists
+        existing_edge = self.kg.get_edge(edge_decl.source_uid, edge_decl.target_uid)
+
+        if existing_edge:
+            # Update existing edge
+            properties = {"type": edge_type, "meta_props": meta_props}
+            self.kg.update_edge(edge_decl.source_uid, edge_decl.target_uid, properties)
+            result = {"status": "updated", "edge": f"{edge_decl.source_uid}->{edge_decl.target_uid}"}
+        else:
+            # Create new edge
+            edge = KGEdge(
+                source_uid=edge_decl.source_uid,
+                target_uid=edge_decl.target_uid,
+                type=edge_type,
+                meta_props=meta_props
+            )
+            self.kg.add_edge(edge)
+            result = {"status": "created", "edge": f"{edge_decl.source_uid}->{edge_decl.target_uid}"}
+
+        self.context.log_execution(
+            "KGLINK",
+            {
+                "source": edge_decl.source_uid,
+                "target": edge_decl.target_uid,
+                "fields": edge_decl.fields
+            },
+            result
+        )
+        return result
 
     def execute_simple_command(self, cmd: SimpleCommand) -> Any:
         """
@@ -139,16 +234,25 @@ class KGMLExecutor:
 
         elif cmd.entity_type == "LINK":
             # Parse the instruction to determine source and target
-            # Assuming the instruction has format "From X to Y" or similar
-            # This is a simplification - in practice, you would use NLP or a more robust approach
+            # Improved to better support the KGLINK syntax model
             parts = cmd.instruction.split()
 
-            # Very basic parsing of the instruction
-            source = cmd.uid  # Using the uid as source by default
+            # Default source is the uid in the command
+            source = cmd.uid
             target = None
 
-            # Try to extract source and target from the instruction
-            if "To" in parts and parts.index("To") < len(parts) - 1:
+            # Look for -> pattern or "to" keyword in the instruction
+            if "->" in cmd.instruction:
+                # Extract target from pattern like "SourceNode -> TargetNode"
+                arrow_parts = cmd.instruction.split("->")
+                if len(arrow_parts) >= 2:
+                    # Target might be the first word after ->
+                    target_part = arrow_parts[1].strip()
+                    target_words = target_part.split()
+                    if target_words:
+                        target = target_words[0]
+            elif "To" in parts and parts.index("To") < len(parts) - 1:
+                # Traditional parsing looking for "To" keyword
                 target = parts[parts.index("To") + 1]
 
             if source and target:
@@ -186,15 +290,23 @@ class KGMLExecutor:
             return result
 
         elif cmd.entity_type == "LINK":
-            # Similarly to create, we need to parse the instruction to find source/target
-            # For simplicity, assuming uid refers to the source node
+            # Updated link parsing similar to the create method
             source = cmd.uid
             target = None
 
-            # Basic parsing to extract the target
-            parts = cmd.instruction.split()
-            if "To" in parts and parts.index("To") < len(parts) - 1:
-                target = parts[parts.index("To") + 1]
+            # Look for -> pattern or "to" keyword in the instruction
+            if "->" in cmd.instruction:
+                arrow_parts = cmd.instruction.split("->")
+                if len(arrow_parts) >= 2:
+                    target_part = arrow_parts[1].strip()
+                    target_words = target_part.split()
+                    if target_words:
+                        target = target_words[0]
+            else:
+                # Basic parsing to extract the target
+                parts = cmd.instruction.split()
+                if "To" in parts and parts.index("To") < len(parts) - 1:
+                    target = parts[parts.index("To") + 1]
 
             if source and target:
                 properties = {"meta_props": {"instruction": cmd.instruction}}
@@ -225,15 +337,25 @@ class KGMLExecutor:
             return result
 
         elif cmd.entity_type == "LINK":
-            # Parse the instruction to determine the target
+            # Updated link parsing similar to other methods
             source = cmd.uid
             target = None
 
-            parts = cmd.instruction.split()
-            if "Link" in parts and "with" in parts and parts.index("with") < len(parts) - 1:
-                target = parts[parts.index("with") + 1]
-            elif "To" in parts and parts.index("To") < len(parts) - 1:
-                target = parts[parts.index("To") + 1]
+            # Look for -> pattern
+            if "->" in cmd.instruction:
+                arrow_parts = cmd.instruction.split("->")
+                if len(arrow_parts) >= 2:
+                    target_part = arrow_parts[1].strip()
+                    target_words = target_part.split()
+                    if target_words:
+                        target = target_words[0]
+            else:
+                # Use traditional keyword parsing as fallback
+                parts = cmd.instruction.split()
+                if "Link" in parts and "with" in parts and parts.index("with") < len(parts) - 1:
+                    target = parts[parts.index("with") + 1]
+                elif "To" in parts and parts.index("To") < len(parts) - 1:
+                    target = parts[parts.index("To") + 1]
 
             if source and target:
                 self.kg.remove_edge(source, target)

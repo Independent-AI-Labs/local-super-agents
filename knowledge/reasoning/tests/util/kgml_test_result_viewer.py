@@ -3,27 +3,23 @@
 KGML Test Results Gradio UI
 
 A Gradio-based user interface for the KGML Test Results Viewer.
+This module serves as the view component in the MVC pattern.
 """
 
 import logging
 from typing import Dict, List, Tuple
 
 import gradio as gr
-from knowledge.reasoning.tests.util.kgml_test_result_ui_util import (
-    find_test_runs,
-    load_run_data,
-    load_test_iterations,
-    load_iteration_details,
-    create_test_result_chart,
-    create_response_time_chart,
-    create_processing_log_chart,
-    generate_run_summary,
-    generate_test_summary
-)
+
+# Import the controller
+from knowledge.reasoning.tests.util.kgml_test_result_viewer_controller import KGMLTestResultsController
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("KGMLViewer")
+
+# Create a controller instance
+controller = KGMLTestResultsController()
 
 
 # ========== UI Event Handlers ==========
@@ -35,26 +31,7 @@ def refresh_runs() -> Tuple[List[List], List[Dict], str]:
     Returns:
         Tuple containing visible data for the table, full run data, and any error messages
     """
-    try:
-        runs = find_test_runs()
-        logger.info(f"Found {len(runs)} test runs")
-
-        if not runs:
-            return [], [], "No test runs found in directory. Check that data exists in the specified location."
-
-        # Format data for display table - note the reordered columns
-        visible_data = []
-        for run in runs:
-            visible_data.append([
-                run["success_rate"],
-                run["model_name"],
-                run["formatted_date"]
-            ])
-
-        return visible_data, runs, None
-    except Exception as e:
-        logger.error(f"Error refreshing runs: {str(e)}")
-        return [], [], f"Error refreshing runs: {str(e)}"
+    return controller.get_test_runs()
 
 
 def on_run_selected(evt: gr.SelectData, runs_data: List[Dict]) -> Tuple:
@@ -68,45 +45,7 @@ def on_run_selected(evt: gr.SelectData, runs_data: List[Dict]) -> Tuple:
     Returns:
         Tuple containing updated UI component values
     """
-    try:
-        if not runs_data or evt.index[0] >= len(runs_data):
-            return [], "", None, None, None, [], []
-
-        # Get the run path from the selected data
-        run_path = runs_data[evt.index[0]]["path"]
-        logger.info(f"Selected run: {run_path}")
-
-        # Load run data
-        run_data = load_run_data(run_path)
-
-        if "error" in run_data:
-            return [], f"Error: {run_data['error']}", None, None, None, [], []
-
-        tests = run_data.get("tests", [])
-
-        # Format tests for display table - note the reordered columns
-        visible_tests_data = []
-        for test in tests:
-            visible_tests_data.append([
-                test["status"],
-                test["valid_total"],
-                test["name"]
-            ])
-
-        # Create charts
-        test_result_chart = create_test_result_chart(tests)
-        response_time_chart = create_response_time_chart(tests)
-
-        # Format run summary
-        run_summary = generate_run_summary(run_data.get("stats", {}))
-
-        # Clear iterations table
-        visible_iterations_data = []
-
-        return visible_tests_data, run_summary, test_result_chart, response_time_chart, None, visible_iterations_data, tests
-    except Exception as e:
-        logger.error(f"Error handling run selection: {str(e)}")
-        return [], f"Error handling run selection: {str(e)}", None, None, None, [], []
+    return controller.get_run_details(evt.index[0], runs_data)
 
 
 def on_test_selected(evt: gr.SelectData, tests_data: List[Dict]) -> Tuple:
@@ -120,33 +59,7 @@ def on_test_selected(evt: gr.SelectData, tests_data: List[Dict]) -> Tuple:
     Returns:
         Tuple containing updated UI component values
     """
-    try:
-        if not tests_data or evt.index[0] >= len(tests_data):
-            return [], "", None, []
-
-        # Get the test path from the full data
-        test_path = tests_data[evt.index[0]]["path"]
-        logger.info(f"Selected test: {test_path}")
-
-        # Load test iterations
-        iterations = load_test_iterations(test_path)
-
-        # Format iterations for display table
-        visible_iterations_data = []
-        for iteration in iterations:
-            visible_iterations_data.append([
-                iteration["status"],
-                iteration["response_time"]
-            ])
-
-        # Create test summary
-        test_data = tests_data[evt.index[0]]
-        test_summary = generate_test_summary(test_data)
-
-        return visible_iterations_data, test_summary, None, iterations
-    except Exception as e:
-        logger.error(f"Error handling test selection: {str(e)}")
-        return [], f"Error handling test selection: {str(e)}", None, []
+    return controller.get_test_details(evt.index[0], tests_data)
 
 
 def on_iteration_selected(evt: gr.SelectData, iterations_data: List[Dict]) -> Tuple:
@@ -160,44 +73,7 @@ def on_iteration_selected(evt: gr.SelectData, iterations_data: List[Dict]) -> Tu
     Returns:
         Tuple containing updated UI component values
     """
-    try:
-        if not iterations_data or evt.index[0] >= len(iterations_data):
-            return "", "", "", None, None
-
-        # Get the iteration path from the full data
-        iteration_path = iterations_data[evt.index[0]]["path"]
-        logger.info(f"Selected iteration: {iteration_path}")
-
-        # Load iteration details
-        details = load_iteration_details(iteration_path)
-
-        if "error" in details:
-            return "", "", "", None, f"Error: {details['error']}"
-
-        # Create processing log chart if available
-        processing_log_chart = None
-        if details.get("processing_result"):
-            processing_log_chart = create_processing_log_chart(details["processing_result"])
-
-        # Format processing result for display
-        exec_result_str = ""
-        if details.get("processing_result"):
-            try:
-                import json
-                exec_result_str = json.dumps(details["processing_result"], indent=2)
-            except:
-                exec_result_str = str(details["processing_result"])
-
-        return (
-            details.get("request", ""),
-            details.get("response", ""),
-            exec_result_str,
-            processing_log_chart,
-            None
-        )
-    except Exception as e:
-        logger.error(f"Error handling iteration selection: {str(e)}")
-        return "", "", "", None, f"Error handling iteration selection: {str(e)}"
+    return controller.get_iteration_details(evt.index[0], iterations_data)
 
 
 # ========== UI Creation ==========
@@ -243,11 +119,11 @@ def create_ui():
             max-height: 48px;
             overflow: hidden;
         }
-        
+
         .dataframe tbody tr.selected {
             background-color: rgba(63, 81, 181, 0.2) !important; /* Example: light blue */
         }
-        
+
         /* Make sure the content doesn't overflow */
         .dataframe td, .dataframe th {
             white-space: nowrap;
@@ -261,7 +137,7 @@ def create_ui():
         }
     """) as app:
         gr.Markdown("# 📊 KGML Test Results Viewer")
-        # gr.Markdown("Interactive viewer for KGML test data and processing results")
+        gr.Markdown("Interactive viewer for KGML test data and processing results")
 
         # Create hidden state variables to store full data with paths
         runs_data_state = gr.State([])
@@ -284,7 +160,7 @@ def create_ui():
                     max_height=300,
                     column_widths=["20%", "55%", "25%"]
                 )
-                # refresh_button = gr.Button("🔄 Refresh Test Runs", variant="primary", size="sm")
+                refresh_button = gr.Button("🔄 Refresh Test Runs", variant="primary", size="sm")
 
             # Tests table (1/3 width)
             with gr.Column(scale=1):
@@ -369,10 +245,10 @@ def create_ui():
                         processing_log_chart = gr.Plot(label="Visualization of the processing steps")
 
         # Set up event handlers
-        # refresh_button.click(
-        #     fn=refresh_runs,
-        #     outputs=[runs_table, runs_data_state, error_output]
-        # )
+        refresh_button.click(
+            fn=refresh_runs,
+            outputs=[runs_table, runs_data_state, error_output]
+        )
 
         # Use SelectData events for table selections with state
         runs_table.select(
@@ -434,3 +310,32 @@ def create_ui():
         )
 
     return app
+
+
+# ========== Main Entry Point ==========
+
+def main():
+    """Main entry point for the application"""
+    import argparse
+
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="KGML Test Results Viewer")
+    parser.add_argument("--port", type=int, default=7860, help="Port to run the server on")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to run the server on")
+    parser.add_argument("--share", action="store_true", help="Create a public link for sharing")
+    parser.add_argument("--base-dir", type=str, default="kgml_test_logs",
+                        help="Base directory for test logs")
+
+    args = parser.parse_args()
+
+    # Update controller with base directory
+    global controller
+    controller = KGMLTestResultsController(args.base_dir)
+
+    # Create and launch the UI
+    app = create_ui()
+    app.launch(server_name=args.host, server_port=args.port, share=args.share)
+
+
+if __name__ == "__main__":
+    main()

@@ -211,7 +211,7 @@ def calculate_structured_search_throughput(
 ) -> Tuple[float, str]:
     throughput = (os.path.getsize(data_file) / 1024 / 1024) / search_time
 
-    with open(os.path.join(file_metadata_dir, "offsets.csv"), 'r') as file:
+    with open(os.path.join(file_metadata_dir, "offsets.csv"), 'r', 'utf-8') as file:
         last_line = file.readlines()[-1]
         last_item_index_offset = int(last_line.split(',')[-1])
 
@@ -227,7 +227,7 @@ def calculate_structured_search_throughput(
     # Sort the metadata files based on the number in their filename.
     metadata_files.sort(key=lambda x: int(metadata_pattern.search(x).group(1)))
 
-    with open(os.path.join(file_metadata_dir, metadata_files[-1]), 'r') as file:
+    with open(os.path.join(file_metadata_dir, metadata_files[-1]), 'r', 'utf-8') as file:
         last_line = file.readlines()[-1]
         last_item_index = int(last_line.split(',')[-1])
 

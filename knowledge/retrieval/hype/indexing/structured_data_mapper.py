@@ -424,7 +424,7 @@ def update_offsets(file_path: str, metadata_output_dir: str):
     # Iterate over sorted metadata files to collect last integers
     for filename in metadata_files:
         metadata_file_path = os.path.join(metadata_output_dir, filename)
-        with open(metadata_file_path, 'r') as file:
+        with open(metadata_file_path, 'r', 'utf-8') as file:
             last_line = file.readlines()[-1]
             last_integer = int(last_line.split(',')[-1])  # Get the last integer from the last line
             last_integers.append(last_integer)
@@ -445,7 +445,7 @@ def update_offsets(file_path: str, metadata_output_dir: str):
     offsets_data = []
 
     if os.path.exists(offsets_file_path):
-        with open(offsets_file_path, 'r') as file:
+        with open(offsets_file_path, 'r', 'utf-8') as file:
             reader = csv.reader(file)
             offsets_data = [row for row in reader]
 
@@ -464,7 +464,7 @@ def update_offsets(file_path: str, metadata_output_dir: str):
     DEFAULT_LOGGER.log_debug(new_offsets_data)
 
     # Write the updated offsets data back to offsets.csv
-    with open(offsets_file_path, 'w', newline='') as file:
+    with open(offsets_file_path, 'w', newline='', 'utf-8') as file:
         writer = csv.writer(file)
         writer.writerows(new_offsets_data)
 

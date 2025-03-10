@@ -128,7 +128,7 @@ def start_proxy():
 }}
 """
     # Write the Caddyfile
-    with open(CADDYFILE_PATH, 'w') as f:
+    with open(CADDYFILE_PATH, 'w', 'utf-8') as f:
         f.write(caddyfile_content)
 
     # Start the Caddy process

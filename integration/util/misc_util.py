@@ -129,7 +129,7 @@ def select_and_list_directory_contents(dir_path: str = "", exclude_hidden: bool 
 def touch(log_file: str):
     # Create an empty file if it doesn't exist
     if not os.path.exists(log_file):
-        with open(log_file, 'w') as f:
+        with open(log_file, 'w', 'utf-8') as f:
             pass
 
 

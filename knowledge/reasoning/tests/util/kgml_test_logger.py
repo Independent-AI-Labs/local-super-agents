@@ -1,6 +1,6 @@
-import json
+import datetime
 import logging
-from datetime import datetime
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -11,433 +11,170 @@ logger = logging.getLogger("KGMLTestLogger")
 
 class KGMLTestLogger:
     """
-    Handles logging of KGML test execution, request-response pairs, and detailed statistics.
-    Organizes logs in a directory structure by test name and maintains comprehensive stats.
+    Logger for KGML tests that records interactions and results.
     """
 
-    def __init__(self, base_dir: str = "kgml_test_logs", model_name: str = "unknown"):
-        """
-        Initialize the test logger with a base directory.
-
-        Args:
-            base_dir: Base directory for all test logs
-            model_name: Name of the model being tested
-        """
+    def __init__(self, base_dir: str, model_name: str):
         self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(exist_ok=True, parents=True)
+        self.model_name = model_name
+        self.run_id = time.strftime("%Y%m%d_%H%M%S")
+        self.run_id_time = time.time()  # Store actual timestamp for ISO formatting
+        self.run_dir = self.base_dir / f"run_{self.run_id}_{model_name}".replace(":", "_")
+        self.run_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create a unique run identifier based on timestamp
-        self.run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_dir = self.base_dir / self.run_id
-        self.run_dir.mkdir(exist_ok=True)
+        self.current_test = None
+        self.test_data = {}
 
-        # Initialize stats file
-        self.stats_file = self.run_dir / "stats.json"
-        self.stats = {
-            "run_id": self.run_id,
-            "model_name": model_name,  # Add model name to stats
-            "start_time": datetime.now().isoformat(),
-            "end_time": None,
-            "total_tests": 0,
-            "total_prompts": 0,
-            "total_responses": 0,
-            "valid_responses": 0,
-            "invalid_responses": 0,
-            "syntax_errors": 0,
-            "processing_errors": 0,
-            "response_times": [],
-            "processing_times": [],  # Add tracking for processing times
-            "avg_response_time": None,
-            "avg_processing_time": None,  # Add average processing time
-            "max_response_time": None,
-            "min_response_time": None,
-            "max_processing_time": None,  # Add max processing time
-            "min_processing_time": None,  # Add min processing time
-            "tests": {}
+        # Create a run info file with ISO-formatted timestamps
+        with open(self.run_dir / "run_info.txt", "w") as f:
+            start_time_iso = datetime.datetime.fromtimestamp(self.run_id_time).isoformat()
+            f.write(f"Test Run: {self.run_id}\n")
+            f.write(f"Model: {model_name}\n")
+            f.write(f"Started: {start_time_iso}\n")
+
+    def start_test(self, test_name: str, metadata: Dict[str, Any]):
+        """Start a new test with the given name and metadata."""
+        self.current_test = test_name
+        self.test_data[test_name] = {
+            "metadata": metadata,
+            "iterations": [],
+            "start_time": time.time(),
+            "completed": False
         }
-        self._save_stats()
 
-        # Create a run log file
-        self.log_file = self.run_dir / "run.log"
-        self.file_handler = logging.FileHandler(self.log_file)
-        self.file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        ))
-        logger.addHandler(self.file_handler)
-
-        logger.info(f"Test run {self.run_id} initialized in {self.run_dir} for model {model_name}")
-
-    def start_test(self, test_name: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Start a new test and create its directory structure.
-
-        Args:
-            test_name: Name of the test
-            metadata: Additional test metadata
-
-        Returns:
-            Path to the test directory
-        """
-        # Create a sanitized test directory name
-        safe_name = "".join(c if c.isalnum() else "_" for c in test_name)
-        test_dir = self.run_dir / safe_name
+        # Create a test directory
+        test_dir = self.run_dir / test_name
         test_dir.mkdir(exist_ok=True)
 
-        # Initialize test stats with safe default values
-        test_stats = {
-            "name": test_name,
-            "metadata": metadata or {},
-            "start_time": datetime.now().isoformat(),
-            "end_time": None,
-            "iterations": 0,
-            "prompts": 0,
-            "responses": 0,
-            "valid_responses": 0,
-            "invalid_responses": 0,
-            "syntax_errors": 0,
-            "processing_errors": 0,
-            "response_times": [],
-            "processing_times": [],  # Add tracking for processing times
-            "avg_response_time": None,
-            "avg_processing_time": None,  # Add average processing time
-            "goal_reached": None,
-            "iterations_to_goal": None,
-        }
+        # Write metadata
+        with open(test_dir / "metadata.txt", "w") as f:
+            for key, value in metadata.items():
+                f.write(f"{key}: {value}\n")
 
-        self.stats["tests"][test_name] = test_stats
-        self.stats["total_tests"] += 1
-        self._save_stats()
+    def log_request_response(self, test_name: str, iteration: int, request: str, response: str,
+                             response_time: float, is_valid: bool, has_syntax_errors: bool,
+                             execution_result: Optional[Dict[str, Any]] = None):
+        """Log a request-response pair for a test iteration."""
+        if test_name not in self.test_data:
+            self.start_test(test_name, {"description": "Auto-created test"})
 
-        logger.info(f"Started test: {test_name}")
-        return str(test_dir)
+        # Ensure the test directory exists
+        test_dir = self.run_dir / test_name
+        test_dir.mkdir(exist_ok=True)
 
-    def log_request_response(self,
-                             test_name: str,
-                             iteration: int,
-                             request: str,
-                             response: str,
-                             response_time: float,
-                             is_valid: bool,
-                             has_syntax_errors: bool,
-                             processing_result: Optional[Dict[str, Any]] = None) -> None:
-        """
-        Log a request-response pair for a test iteration.
-
-        Args:
-            test_name: Name of the test
-            iteration: Iteration number (1-based)
-            request: The request prompt sent to the model
-            response: The response received from the model
-            response_time: Time in seconds for the model to respond
-            is_valid: Whether the response is valid KGML
-            has_syntax_errors: Whether the response has syntax errors
-            processing_result: Result of executing the KGML (if available)
-        """
-        if test_name not in self.stats["tests"]:
-            logger.warning(f"Test {test_name} not found in stats. Starting it now.")
-            self.start_test(test_name)
-
-        # Get test directory
-        safe_name = "".join(c if c.isalnum() else "_" for c in test_name)
-        test_dir = self.run_dir / safe_name
-
-        # Create iteration directory
-        iter_dir = test_dir / f"iteration_{iteration:03d}"
+        # Create iteration directory if it doesn't exist
+        iter_dir = test_dir / f"iteration_{iteration}"
         iter_dir.mkdir(exist_ok=True)
 
-        # Save request and response to separate files
-        if request:  # Only write if not empty
-            request_file = iter_dir / "request.kgml"
-            with open(request_file, "w", encoding="utf-8") as f:
+        # Write request
+        if request:
+            with open(iter_dir / "request.kgml", "w", encoding="utf-8") as f:
                 f.write(request)
 
-        if response:  # Only write if not empty
-            response_file = iter_dir / "response.kgml"
-            with open(response_file, "w", encoding="utf-8") as f:
+        # Write response
+        if response:
+            with open(iter_dir / "response.kgml", "w", encoding="utf-8") as f:
                 f.write(response)
 
-        # Extract processing time if available
-        processing_time = None
-        if processing_result is not None:
-            # Save processing result
-            result_file = iter_dir / "processing_result.json"
-            with open(result_file, "w", encoding="utf-8") as f:
-                json.dump(processing_result, f, indent=2)
+        # Write execution result if provided
+        if execution_result:
+            with open(iter_dir / "execution_result.txt", "w", encoding="utf-8") as f:
+                f.write(f"Success: {execution_result.get('success', False)}\n")
+                if 'error' in execution_result:
+                    f.write(f"Error: {execution_result['error']}\n")
+                if 'execution_time' in execution_result:
+                    f.write(f"Execution Time: {execution_result['execution_time']:.4f}s\n")
+                if 'execution_log' in execution_result:
+                    f.write("\nExecution Log:\n")
+                    for log_entry in execution_result['execution_log']:
+                        f.write(f"- {log_entry}\n")
 
-            # Extract processing time from the result
-            processing_time = processing_result.get("processing_time")
-
-        # Save iteration metadata
+        # Save metadata to JSON file
         metadata = {
-            "iteration": iteration,
-            "timestamp": datetime.now().isoformat(),
-            "response_time_seconds": response_time,
             "is_valid": is_valid,
             "has_syntax_errors": has_syntax_errors,
-            "processing_success": processing_result.get("success", False) if processing_result else None,
-            "processing_time_seconds": processing_time  # Include processing time in metadata
+            "response_time": response_time,
+            "execution_success": execution_result.get("success", None) if execution_result else None,
+            "timestamp": time.time()
         }
-        meta_file = iter_dir / "metadata.json"
-        with open(meta_file, "w", encoding="utf-8") as f:
+
+        with open(iter_dir / "metadata.json", "w", encoding="utf-8") as f:
+            import json
             json.dump(metadata, f, indent=2)
 
-        # Update test stats
-        test_stats = self.stats["tests"][test_name]
+        # Update test data
+        iteration_data = {
+            "response_time": response_time,
+            "is_valid": is_valid,
+            "has_syntax_errors": has_syntax_errors,
+            "execution_success": execution_result.get("success", False) if execution_result else None
+        }
 
-        # Only increment counters if we're actually logging a new response
-        # (not just updating an existing one)
-        if request and response:
-            test_stats["iterations"] = max(test_stats["iterations"], iteration)
-            test_stats["prompts"] += 1
-            test_stats["responses"] += 1
+        # Add to test data
+        while len(self.test_data[test_name]["iterations"]) < iteration:
+            self.test_data[test_name]["iterations"].append(None)
 
-            if response_time > 0:  # Only track valid response times
-                test_stats.setdefault("response_times", []).append(response_time)
-                response_times = test_stats.get("response_times", [])
-                if response_times:
-                    test_stats["avg_response_time"] = sum(response_times) / len(response_times)
+        if len(self.test_data[test_name]["iterations"]) == iteration - 1:
+            self.test_data[test_name]["iterations"].append(iteration_data)
+        else:
+            self.test_data[test_name]["iterations"][iteration - 1] = iteration_data
 
-            if is_valid:
-                test_stats["valid_responses"] = test_stats.get("valid_responses", 0) + 1
-            else:
-                test_stats["invalid_responses"] = test_stats.get("invalid_responses", 0) + 1
-
-            if has_syntax_errors:
-                test_stats["syntax_errors"] = test_stats.get("syntax_errors", 0) + 1
-
-            if processing_result and not processing_result.get("success", False):
-                test_stats["processing_errors"] = test_stats.get("processing_errors", 0) + 1
-
-            # Update global stats
-            self.stats["total_prompts"] += 1
-            self.stats["total_responses"] += 1
-
-            if response_time > 0:  # Only track valid response times
-                self.stats.setdefault("response_times", []).append(response_time)
-                all_response_times = self.stats.get("response_times", [])
-                if all_response_times:
-                    self.stats["avg_response_time"] = sum(all_response_times) / len(all_response_times)
-                    self.stats["max_response_time"] = max(all_response_times)
-                    self.stats["min_response_time"] = min(all_response_times)
-
-            if is_valid:
-                self.stats["valid_responses"] = self.stats.get("valid_responses", 0) + 1
-            else:
-                self.stats["invalid_responses"] = self.stats.get("invalid_responses", 0) + 1
-
-            if has_syntax_errors:
-                self.stats["syntax_errors"] = self.stats.get("syntax_errors", 0) + 1
-
-            if processing_result and not processing_result.get("success", False):
-                self.stats["processing_errors"] = self.stats.get("processing_errors", 0) + 1
-
-        # Update processing time stats if available
-        if processing_time is not None and processing_time > 0:
-            # Update test stats
-            test_stats.setdefault("processing_times", []).append(processing_time)
-            processing_times = test_stats.get("processing_times", [])
-            if processing_times:
-                test_stats["avg_processing_time"] = sum(processing_times) / len(processing_times)
-
-            # Update global stats
-            self.stats.setdefault("processing_times", []).append(processing_time)
-            all_processing_times = self.stats.get("processing_times", [])
-            if all_processing_times:
-                self.stats["avg_processing_time"] = sum(all_processing_times) / len(all_processing_times)
-                self.stats["max_processing_time"] = max(all_processing_times)
-                self.stats["min_processing_time"] = min(all_processing_times)
-
-        self._save_stats()
-        logger.info(f"Logged iteration {iteration} for test {test_name}")
-
-    def end_test(self, test_name: str, goal_reached: Optional[bool] = None, iterations_to_goal: Optional[int] = None) -> None:
-        """
-        Mark a test as complete and update its final statistics.
-
-        Args:
-            test_name: Name of the test
-            goal_reached: Whether the test reached its goal
-            iterations_to_goal: Number of iterations it took to reach the goal
-        """
-        if test_name not in self.stats["tests"]:
-            logger.warning(f"Cannot end test {test_name}: not found in stats")
+    def end_test(self, test_name: str, goal_reached: bool, iterations_to_goal: Optional[int] = None):
+        """Mark a test as completed with results."""
+        if test_name not in self.test_data:
+            logger.warning(f"Trying to end test {test_name} which was not started")
             return
 
-        test_stats = self.stats["tests"][test_name]
-        test_stats["end_time"] = datetime.now().isoformat()
+        self.test_data[test_name]["completed"] = True
+        self.test_data[test_name]["end_time"] = time.time()
+        self.test_data[test_name]["goal_reached"] = goal_reached
+        self.test_data[test_name]["iterations_to_goal"] = iterations_to_goal
 
-        # Only update these fields if they're provided
-        if goal_reached is not None:
-            test_stats["goal_reached"] = goal_reached
+        # Write summary
+        test_dir = self.run_dir / test_name
+        with open(test_dir / "summary.txt", "w", encoding="utf-8") as f:
+            duration = self.test_data[test_name]["end_time"] - self.test_data[test_name]["start_time"]
+            f.write(f"Test: {test_name}\n")
+            f.write(f"Goal Reached: {goal_reached}\n")
+            if iterations_to_goal is not None:
+                f.write(f"Iterations to Goal: {iterations_to_goal}\n")
+            f.write(f"Duration: {duration:.2f}s\n")
 
-        if iterations_to_goal is not None:
-            test_stats["iterations_to_goal"] = iterations_to_goal
+            # Add iteration summaries
+            f.write("\nIterations:\n")
+            for i, iter_data in enumerate(self.test_data[test_name]["iterations"], 1):
+                if iter_data:
+                    status = "✓" if iter_data.get("is_valid", False) else "✗"
+                    exec_status = ""
+                    if iter_data.get("execution_success") is not None:
+                        exec_status = "Execution: " + ("✓" if iter_data["execution_success"] else "✗")
+                    f.write(f"  {i}: Response Valid: {status} {exec_status} ({iter_data['response_time']:.2f}s)\n")
 
-        # Generate test summary
-        safe_name = "".join(c if c.isalnum() else "_" for c in test_name)
-        test_dir = self.run_dir / safe_name
+    def end_run(self):
+        """Finalize the test run."""
+        # Complete any incomplete tests
+        for test_name, test_data in self.test_data.items():
+            if not test_data.get("completed", False):
+                self.end_test(test_name, False)
 
-        # Make sure the directory exists
-        if not test_dir.exists():
-            test_dir.mkdir(exist_ok=True, parents=True)
+        # Record end time in ISO format for consistency
+        end_time = time.time()
+        end_time_iso = datetime.datetime.fromtimestamp(end_time).isoformat()
 
-        summary_file = test_dir / "summary.json"
+        # Write overall summary
+        with open(self.run_dir / "summary.txt", "w", encoding="utf-8") as f:
+            f.write(f"Test Run: {self.run_id}\n")
+            f.write(f"Model: {self.model_name}\n")
+            f.write(f"Started: {datetime.datetime.fromtimestamp(self.run_id_time).isoformat()}\n")
+            f.write(f"Completed: {end_time_iso}\n\n")
 
-        with open(summary_file, "w", encoding="utf-8") as f:
-            json.dump(test_stats, f, indent=2)
+            total_tests = len(self.test_data)
+            successful_tests = sum(1 for t in self.test_data.values() if t.get("goal_reached", False))
+            f.write(f"Tests: {total_tests}\n")
+            f.write(f"Successful: {successful_tests} ({successful_tests / total_tests * 100:.1f}%)\n\n")
 
-        self._save_stats()
-        goal_status = "reached" if goal_reached else "failed" if goal_reached is not None else "unknown"
-        logger.info(f"Ended test: {test_name}, goal {goal_status}")
-
-    def end_run(self) -> Dict[str, Any]:
-        """
-        Mark the test run as complete and finalize statistics.
-
-        Returns:
-            The final run statistics
-        """
-        self.stats["end_time"] = datetime.now().isoformat()
-        self._save_stats()
-
-        # Generate an overall summary report
-        summary_report = self._generate_summary_report()
-        summary_file = self.run_dir / "summary_report.txt"
-        with open(summary_file, "w", encoding="utf-8") as f:
-            f.write(summary_report)
-
-        logger.info(f"Test run {self.run_id} completed")
-        return self.stats
-
-    def _save_stats(self) -> None:
-        """Save the current stats to the stats file."""
-        with open(self.stats_file, "w", encoding="utf-8") as f:
-            json.dump(self.stats, f, indent=2)
-
-    def _generate_summary_report(self) -> str:
-        """Generate a human-readable summary report of the test run."""
-        now = datetime.now()
-        started = datetime.fromisoformat(self.stats["start_time"])
-        duration = now - started
-
-        lines = [
-            f"KGML Test Run Summary Report",
-            f"==========================",
-            f"",
-            f"Run ID: {self.run_id}",
-            f"Model: {self.stats.get('model_name', 'unknown')}",  # Add model name to the report
-            f"Started: {self.stats['start_time']}",
-            f"Ended: {self.stats.get('end_time') or now.isoformat()}",
-            f"Duration: {duration}",
-            f"",
-            f"Overall Statistics",
-            f"-----------------",
-            f"Total Tests: {self.stats['total_tests']}",
-            f"Total Prompts: {self.stats['total_prompts']}",
-            f"Total Responses: {self.stats['total_responses']}",
-        ]
-
-        # Safely format percentages with null checks
-        total_responses = max(1, self.stats.get('total_responses', 1))
-        valid_responses = self.stats.get('valid_responses', 0)
-        invalid_responses = self.stats.get('invalid_responses', 0)
-        syntax_errors = self.stats.get('syntax_errors', 0)
-        processing_errors = self.stats.get('processing_errors', 0)
-
-        lines.extend([
-            f"Valid Responses: {valid_responses} ({valid_responses / total_responses * 100:.1f}%)",
-            f"Invalid Responses: {invalid_responses} ({invalid_responses / total_responses * 100:.1f}%)",
-            f"Syntax Errors: {syntax_errors} ({syntax_errors / total_responses * 100:.1f}%)",
-            f"Execution Errors: {processing_errors} ({processing_errors / total_responses * 100:.1f}%)",
-            f"",
-            f"Response Time Statistics",
-            f"-----------------------",
-        ])
-
-        # Safely format response time statistics with null checks
-        avg_response_time = self.stats.get('avg_response_time')
-        min_response_time = self.stats.get('min_response_time')
-        max_response_time = self.stats.get('max_response_time')
-
-        if avg_response_time is not None:
-            lines.append(f"Average Response Time: {avg_response_time:.2f}s")
-        else:
-            lines.append(f"Average Response Time: N/A")
-
-        if min_response_time is not None:
-            lines.append(f"Minimum Response Time: {min_response_time:.2f}s")
-        else:
-            lines.append(f"Minimum Response Time: N/A")
-
-        if max_response_time is not None:
-            lines.append(f"Maximum Response Time: {max_response_time:.2f}s")
-        else:
-            lines.append(f"Maximum Response Time: N/A")
-
-        # Add processing time statistics
-        lines.extend([
-            f"",
-            f"Processing Time Statistics",
-            f"-------------------------",
-        ])
-
-        avg_processing_time = self.stats.get('avg_processing_time')
-        min_processing_time = self.stats.get('min_processing_time')
-        max_processing_time = self.stats.get('max_processing_time')
-
-        if avg_processing_time is not None:
-            lines.append(f"Average Processing Time: {avg_processing_time:.2f}s")
-        else:
-            lines.append(f"Average Processing Time: N/A")
-
-        if min_processing_time is not None:
-            lines.append(f"Minimum Processing Time: {min_processing_time:.2f}s")
-        else:
-            lines.append(f"Minimum Processing Time: N/A")
-
-        if max_processing_time is not None:
-            lines.append(f"Maximum Processing Time: {max_processing_time:.2f}s")
-        else:
-            lines.append(f"Maximum Processing Time: N/A")
-
-        lines.extend([
-            f"",
-            f"Test Results",
-            f"------------",
-        ])
-
-        for test_name, test_stats in self.stats["tests"].items():
-            goal_status = "✅ REACHED" if test_stats.get("goal_reached") else "❌ FAILED" if test_stats.get("goal_reached") is not None else "⚠️ UNKNOWN"
-            iterations_to_goal = test_stats.get('iterations_to_goal')
-            iterations = f"in {iterations_to_goal} iterations" if iterations_to_goal is not None else ""
-
-            lines.append(f"")
-            lines.append(f"Test: {test_name}")
-            lines.append(f"  Goal: {goal_status} {iterations}")
-            lines.append(f"  Iterations: {test_stats.get('iterations', 0)}")
-
-            # Safely format test percentages with null checks
-            test_responses = max(1, test_stats.get('responses', 1))
-            test_valid = test_stats.get('valid_responses', 0)
-            test_syntax_errors = test_stats.get('syntax_errors', 0)
-            test_processing_errors = test_stats.get('processing_errors', 0)
-
-            lines.append(f"  Valid Responses: {test_valid}/{test_stats.get('responses', 0)} ({test_valid / test_responses * 100:.1f}%)")
-            lines.append(f"  Syntax Errors: {test_syntax_errors}/{test_stats.get('responses', 0)} ({test_syntax_errors / test_responses * 100:.1f}%)")
-            lines.append(f"  Execution Errors: {test_processing_errors}/{test_stats.get('responses', 0)} ({test_processing_errors / test_responses * 100:.1f}%)")
-
-            # Safely format test response time with null check
-            test_avg_response_time = test_stats.get('avg_response_time')
-            if test_avg_response_time is not None:
-                lines.append(f"  Avg. Response Time: {test_avg_response_time:.2f}s")
-            else:
-                lines.append(f"  Avg. Response Time: N/A")
-
-            # Add test processing time statistics
-            test_avg_processing_time = test_stats.get('avg_processing_time')
-            if test_avg_processing_time is not None:
-                lines.append(f"  Avg. Processing Time: {test_avg_processing_time:.2f}s")
-            else:
-                lines.append(f"  Avg. Processing Time: N/A")
-
-        return "\n".join(lines)
+            f.write("Test Results:\n")
+            for test_name, test_data in self.test_data.items():
+                status = "✅" if test_data.get("goal_reached", False) else "❌"
+                iterations = test_data.get("iterations_to_goal", "N/A")
+                f.write(f"  {test_name}: {status} (Iterations: {iterations})\n")
