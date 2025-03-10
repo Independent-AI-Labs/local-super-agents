@@ -12,16 +12,21 @@
   Control Blocks:
     • IF►, ELIF►, ELSE►, ◄ = Conditional execution blocks.
     • LOOP►, ◄ = Loop blocks.
+
+  Embedded Knowledge Graph Object Syntax:
+    • KG►, ◄ = Knowledge Graph block containing node data.
+    • KGNODE►, ◄ = Node data, can contain any textual or binary representation of itself.
+    • KGLINK►, ◄ = Edge / Node Link data, can contain any textual or binary representation of itself.
 *)
 
 (* A complete KGML program is a sequence of statements. *)
 program         = { statement } ;
 
-(* A statement can be either a command (single-line) or a control structure (with a nested block). *)
-statement       = command | control ;
+(* A statement can be a command, a control structure, or a knowledge graph block. *)
+statement       = command | control | kg_block ;
 
 (* ------------------------------------------------------------------------- *)
-(* Command Statements                                                       *)
+(* Command Statements                                                        *)
 (* ------------------------------------------------------------------------- *)
 command         = create_command
                 | update_command
@@ -41,7 +46,7 @@ timeout         = number ;
 instruction     = string ;  (* A natural language instruction; may be quoted or unquoted. *)
 
 (* ------------------------------------------------------------------------- *)
-(* Control Structures                                                     *)
+(* Control Structures                                                        *)
 (* ------------------------------------------------------------------------- *)
 control         = if_statement | loop_statement ;
 
@@ -61,13 +66,27 @@ block           = { statement_line } ;
 statement_line  = statement , newline ;
 
 (* ------------------------------------------------------------------------- *)
-(* Lexical Rules                                                          *)
+(* Embedded Knowledge Graph Object Syntax                                    *)
+(* ------------------------------------------------------------------------- *)
+kg_block        = "KG►" , newline , { kg_node_statement } , "◄" , newline ;
+kg_node_statement = kg_node | kg_edge ;
+
+kg_node         = "KGNODE►" , ws , uid , ws , ":" , ws , field_list , newline ;
+kg_edge         = "KGLINK►" , ws , source_uid , ws , "->" , ws , target_uid , ws , ":" , ws , field_list , newline ;
+
+source_uid      = identifier ;
+target_uid      = identifier ;
+field_list      = field , { "," , ws , field } ;
+field           = identifier , ws , "=" , ws , string ;
+
+(* ------------------------------------------------------------------------- *)
+(* Lexical Rules                                                             *)
 (* ------------------------------------------------------------------------- *)
 ws              = { " " } ;
 newline         = "\n" ;
 identifier      = letter , { letter | digit | "_" } ;
 number          = digit , { digit } ;
-string          = ? any sequence of characters (optionally enclosed in quotes) ? ;
+string          = ? any sequence of characters (enclosed in double quotes) ? ;
 letter          = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J"
                 | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T"
                 | "U" | "V" | "W" | "X" | "Y" | "Z"

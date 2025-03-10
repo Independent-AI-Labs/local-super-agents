@@ -212,10 +212,10 @@ def load_test_iterations(test_path: str) -> List[Dict[str, Any]]:
             with open(meta_file, "r", encoding="utf-8") as f:
                 metadata = json.load(f)
 
-            # Check for request, response, and execution result files
+            # Check for request, response, and processing result files
             has_request = (iter_dir / "request.kgml").exists()
             has_response = (iter_dir / "response.kgml").exists()
-            has_execution_result = (iter_dir / "execution_result.json").exists()
+            has_processing_result = (iter_dir / "processing_result.json").exists()
 
             # Format response time safely
             response_time = metadata.get('response_time_seconds', 0)
@@ -223,7 +223,7 @@ def load_test_iterations(test_path: str) -> List[Dict[str, Any]]:
 
             # Set iteration status
             if metadata.get("is_valid", False):
-                if metadata.get("execution_success", False):
+                if metadata.get("processing_success", False):
                     status = "✅ Success"
                 else:
                     status = "⚠️ Valid but failed execution"
@@ -241,7 +241,7 @@ def load_test_iterations(test_path: str) -> List[Dict[str, Any]]:
                 "status": status,
                 "response_time": response_time_str,
                 "is_valid": "Yes" if metadata.get("is_valid", False) else "No",
-                "execution_success": "Yes" if metadata.get("execution_success", False) else "No",
+                "processing_success": "Yes" if metadata.get("processing_success", False) else "No",
                 "path": str(iter_dir)
             }
             iterations.append(iter_info)
@@ -302,21 +302,21 @@ def load_iteration_details(iteration_path: str) -> Dict[str, Any]:
             with open(response_file, "r", encoding="utf-8") as f:
                 response = f.read()
 
-        # Load execution result
-        execution_result = {}
-        result_file = iter_dir / "execution_result.json"
+        # Load processing result
+        processing_result = {}
+        result_file = iter_dir / "processing_result.json"
         if result_file.exists():
             with open(result_file, "r", encoding="utf-8") as f:
-                execution_result = json.load(f)
+                processing_result = json.load(f)
 
         # Format response time safely
         response_time = metadata.get('response_time_seconds')
         response_time_str = f"{response_time:.2f}s" if response_time is not None else "N/A"
 
-        # Execution status
-        execution_success = metadata.get('execution_success')
-        if execution_success is not None:
-            exec_status = "✅ Success" if execution_success else "❌ Failed"
+        # Processing status
+        processing_success = metadata.get('processing_success')
+        if processing_success is not None:
+            exec_status = "✅ Success" if processing_success else "❌ Failed"
         else:
             exec_status = "⚠️ Unknown"
 
@@ -324,11 +324,11 @@ def load_iteration_details(iteration_path: str) -> Dict[str, Any]:
             "metadata": metadata,
             "request": request,
             "response": response,
-            "execution_result": execution_result,
+            "processing_result": processing_result,
             "response_time_str": response_time_str,
             "is_valid": metadata.get("is_valid", False),
             "has_syntax_errors": metadata.get("has_syntax_errors", False),
-            "execution_status": exec_status,
+            "processing_status": exec_status,
             "path": iteration_path
         }
     except Exception as e:
@@ -458,22 +458,22 @@ def create_response_time_chart(tests: List[Dict[str, Any]]) -> go.Figure:
     return fig
 
 
-def create_execution_log_chart(execution_result: Dict[str, Any]) -> go.Figure:
+def create_processing_log_chart(processing_result: Dict[str, Any]) -> go.Figure:
     """
-    Create a visualization of the execution log.
+    Create a visualization of the processing log.
 
     Args:
-        execution_result: Execution result dictionary
+        processing_result: Processing result dictionary
 
     Returns:
         Plotly figure
     """
-    execution_log = execution_result.get("execution_log", [])
-    if not execution_log:
+    processing_log = processing_result.get("processing_log", [])
+    if not processing_log:
         # Create empty figure with message
         fig = go.Figure()
         fig.add_annotation(
-            text="No execution log data available",
+            text="No processing log data available",
             xref="paper", yref="paper",
             x=0.5, y=0.5,
             showarrow=False,
@@ -484,7 +484,7 @@ def create_execution_log_chart(execution_result: Dict[str, Any]) -> go.Figure:
     # Extract commands and success status
     commands = []
     status = []
-    for entry in execution_log:
+    for entry in processing_log:
         cmd_type = entry.get("command_type", "Unknown")
         details = entry.get("details", {})
 
@@ -534,7 +534,7 @@ def create_execution_log_chart(execution_result: Dict[str, Any]) -> go.Figure:
 
     fig.update_layout(
         title=dict(
-            text="Execution Log Flow",
+            text="Processing Flow",
             font=dict(size=20)
         ),
         template="plotly_white",
@@ -564,7 +564,7 @@ def generate_run_summary(stats: Dict[str, Any]) -> str:
     valid_responses = stats.get("valid_responses", 0)
     invalid_responses = stats.get("invalid_responses", 0)
     syntax_errors = stats.get("syntax_errors", 0)
-    execution_errors = stats.get("execution_errors", 0)
+    processing_errors = stats.get("processing_errors", 0)
 
     # Format dates and duration
     start_time_str = stats.get("start_time")
@@ -605,7 +605,7 @@ def generate_run_summary(stats: Dict[str, Any]) -> str:
     **Valid Responses:** {valid_responses} ({(valid_responses / total_responses * 100) if total_responses > 0 else 0:.1f}%)  
     **Invalid Responses:** {invalid_responses} ({(invalid_responses / total_responses * 100) if total_responses > 0 else 0:.1f}%)  
     **Syntax Errors:** {syntax_errors} ({(syntax_errors / total_responses * 100) if total_responses > 0 else 0:.1f}%)  
-    **Execution Errors:** {execution_errors} ({(execution_errors / total_responses * 100) if total_responses > 0 else 0:.1f}%)
+    **Execution Errors:** {processing_errors} ({(processing_errors / total_responses * 100) if total_responses > 0 else 0:.1f}%)
     """
 
     avg_response_time = stats.get("avg_response_time")

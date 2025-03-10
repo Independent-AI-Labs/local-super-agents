@@ -96,15 +96,15 @@ def show_run_summary(run_path: str) -> None:
         total_responses = max(1, stats.get('total_responses', 1))
         valid_responses = stats.get('valid_responses', 0)
         syntax_errors = stats.get('syntax_errors', 0)
-        execution_errors = stats.get('execution_errors', 0)
+        processing_errors = stats.get('processing_errors', 0)
 
         valid_pct = (valid_responses / total_responses) * 100
         syntax_pct = (syntax_errors / total_responses) * 100
-        exec_pct = (execution_errors / total_responses) * 100
+        exec_pct = (processing_errors / total_responses) * 100
 
         print(f"Valid Responses: {valid_responses} / {stats.get('total_responses', 0)} ({valid_pct:.1f}%)")
         print(f"Syntax Errors: {syntax_errors} / {stats.get('total_responses', 0)} ({syntax_pct:.1f}%)")
-        print(f"Execution Errors: {execution_errors} / {stats.get('total_responses', 0)} ({exec_pct:.1f}%)")
+        print(f"Execution Errors: {processing_errors} / {stats.get('total_responses', 0)} ({exec_pct:.1f}%)")
 
         # Display response time statistics safely
         avg_response_time = stats.get("avg_response_time")
@@ -176,8 +176,8 @@ def list_test_iterations(run_path: str, test_name: str) -> List[Dict[str, Any]]:
             with open(meta_file, "r", encoding="utf-8") as f:
                 metadata = json.load(f)
 
-                # Check for execution result
-                has_execution_result = (iter_dir / "execution_result.json").exists()
+                # Check for processing result
+                has_processing_result = (iter_dir / "processing_result.json").exists()
 
                 # Format response time safely
                 response_time = metadata.get('response_time_seconds', 0)
@@ -190,7 +190,7 @@ def list_test_iterations(run_path: str, test_name: str) -> List[Dict[str, Any]]:
                     "response_time": response_time_str,
                     "is_valid": metadata.get("is_valid", False),
                     "has_syntax_errors": metadata.get("has_syntax_errors", False),
-                    "execution_success": metadata.get("execution_success", None),
+                    "processing_success": metadata.get("processing_success", None),
                     "path": str(iter_dir)
                 }
                 iterations.append(iter_info)
@@ -235,12 +235,12 @@ def show_iteration_details(iteration_path: str) -> None:
         print(f"Valid KGML: {'✅ Yes' if metadata.get('is_valid', False) else '❌ No'}")
         print(f"Syntax Errors: {'❌ Yes' if metadata.get('has_syntax_errors', False) else '✅ No'}")
 
-        # Handle execution success status safely
-        execution_success = metadata.get('execution_success')
-        if execution_success is not None:
-            print(f"Execution Success: {'✅ Yes' if execution_success else '❌ No'}")
+        # Handle processing success status safely
+        processing_success = metadata.get('processing_success')
+        if processing_success is not None:
+            print(f"Processing Success: {'✅ Yes' if processing_success else '❌ No'}")
         else:
-            print(f"Execution Success: ⚠️ Unknown")
+            print(f"Processing Success: ⚠️ Unknown")
 
         # Show request
         request_file = iter_dir / "request.kgml"
@@ -258,26 +258,26 @@ def show_iteration_details(iteration_path: str) -> None:
             with open(response_file, "r", encoding="utf-8") as f:
                 print(f.read())
 
-        # Show execution result
-        result_file = iter_dir / "execution_result.json"
+        # Show processing result
+        result_file = iter_dir / "processing_result.json"
         if result_file.exists():
-            print("\nExecution Result:")
+            print("\nProcessing Result:")
             print("-" * 50)
             with open(result_file, "r", encoding="utf-8") as f:
                 result = json.load(f)
                 # Format the output for better readability
                 if not result.get("success", False):
-                    print(f"❌ Execution failed: {result.get('error', 'Unknown error')}")
+                    print(f"❌ Processing failed: {result.get('error', 'Unknown error')}")
                 else:
-                    print(f"✅ Execution succeeded")
-                    print(f"Commands executed: {len(result.get('execution_log', []))}")
+                    print(f"✅ Processing succeeded")
+                    print(f"Commands executed: {len(result.get('processing_log', []))}")
                     print(f"Variables set: {len(result.get('variables', {}))}")
                     print(f"Results stored: {len(result.get('results', {}))}")
 
-                    # Show execution log summary
-                    if result.get("execution_log"):
-                        print("\nExecution Log Summary:")
-                        for idx, entry in enumerate(result["execution_log"], 1):
+                    # Show processing log summary
+                    if result.get("processing_log"):
+                        print("\nProcessing Log Summary:")
+                        for idx, entry in enumerate(result["processing_log"], 1):
                             cmd_type = entry.get("command_type", "Unknown")
                             success = "✅" if entry.get("success", False) else "❌"
                             details = entry.get("details", {})
@@ -376,10 +376,10 @@ def main():
                 valid = "✅" if iter_info["is_valid"] else "❌"
                 syntax = "❌" if iter_info["has_syntax_errors"] else "✅"
 
-                # Handle execution success status safely
-                execution_success = iter_info["execution_success"]
-                if execution_success is not None:
-                    exec_success = "✅" if execution_success else "❌"
+                # Handle processing success status safely
+                processing_success = iter_info["processing_success"]
+                if processing_success is not None:
+                    exec_success = "✅" if processing_success else "❌"
                 else:
                     exec_success = "⚠️"
 
@@ -388,7 +388,7 @@ def main():
                 print(f"   Response Time: {iter_info['response_time']}")
                 print(f"   Valid KGML: {valid}")
                 print(f"   Syntax Errors: {syntax}")
-                print(f"   Execution Success: {exec_success}")
+                print(f"   Processing Success: {exec_success}")
                 print()
         else:
             print(f"No iterations found for test '{args.test_name}' in run '{args.run_id}'")

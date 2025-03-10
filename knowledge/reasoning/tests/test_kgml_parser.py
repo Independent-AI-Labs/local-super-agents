@@ -4,7 +4,7 @@ import pytest
 
 from integration.data.config import KGML_SYSTEM_PROMPT
 from integration.net.ollama.ollama_api import prompt_model  # This is the real API call.
-from knowledge.reasoning.dsl.kgml_parser import parse_kgml
+from knowledge.reasoning.dsl.kgml_parser import Parser, tokenize
 
 # ------------------------------------------------------------------------------
 # Global Constant for Model
@@ -15,6 +15,20 @@ CURRENT_MODEL = "qwen2.5-coder:14b"
 # ------------------------------------------------------------------------------
 # Fixtures
 # ------------------------------------------------------------------------------
+
+@pytest.fixture
+def parser():
+    """
+    Returns a function that creates a Parser instance for the given KGML text.
+    This is a factory fixture that creates a new parser for each test.
+    """
+
+    def _create_parser(kgml_text):
+        tokens = tokenize(kgml_text)
+        return Parser(tokens)
+
+    return _create_parser
+
 
 @pytest.fixture
 def reasoning_stats():
@@ -43,11 +57,13 @@ def initial_kg_serialized():
     KG►
     KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T13:24:33.347883", message="User inquiry regarding sensor data manage"
     KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Process the current KG and propose the next reasoning step"
+    ◄
     """
     return (
         'KG►\n'
         'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T13:24:33.347883", message="User inquiry regarding sensor data manage"\n'
-        'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Process the current KG and propose the next reasoning step"'
+        'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Process the current KG and propose the next reasoning step"\n'
+        '◄'
     )
 
 
@@ -62,7 +78,7 @@ def is_plain_text(prompt: str) -> bool:
     and that it contains expected KGML markers.
     """
     return (not prompt.strip().startswith("{") and
-            re.search(r'(KG►|KGNODE►)', prompt) is not None)
+            re.search(r'(KG►|KGNODE►|KGLINK►|C►|U►|D►|E►|N►)', prompt) is not None)
 
 
 def validate_kgml(kgml_text: str) -> bool:
@@ -71,7 +87,9 @@ def validate_kgml(kgml_text: str) -> bool:
     Returns True if parsing succeeds, False otherwise.
     """
     try:
-        _ = parse_kgml(kgml_text)
+        tokens = tokenize(kgml_text)
+        parser = Parser(tokens)
+        _ = parser.parse_program()
         return True
     except Exception:
         return False
@@ -81,7 +99,28 @@ def validate_kgml(kgml_text: str) -> bool:
 # Parser Tests
 # ------------------------------------------------------------------------------
 
-def test_parser_valid_kgml():
+def test_tokenize_valid_kgml():
+    """
+    Test that tokenization works correctly for valid KGML.
+    """
+    valid_kgml = 'C► NODE TestNode "Create test node" ◄'
+    tokens = tokenize(valid_kgml)
+    assert len(tokens) > 0
+
+    # Check for expected tokens
+    assert tokens[0].type == "KEYWORD"
+    assert tokens[0].value == "C►"
+    assert tokens[1].type == "IDENT"
+    assert tokens[1].value == "NODE"
+    assert tokens[2].type == "IDENT"
+    assert tokens[2].value == "TestNode"
+    assert tokens[3].type == "STRING"
+    assert tokens[3].value == '"Create test node"'
+    assert tokens[4].type == "CLOSE"
+    assert tokens[4].value == "◄"
+
+
+def test_parser_valid_kgml(parser):
     """
     Ensure the parser accepts a well-formed KGML string.
     """
@@ -93,13 +132,108 @@ def test_parser_valid_kgml():
         '    D► NODE TestNode "Delete test node" ◄\n'
         '◄\n'
     )
-    ast = parse_kgml(valid_kgml)
+    parser_instance = parser(valid_kgml)
+    ast = parser_instance.parse_program()
     assert ast is not None
     assert hasattr(ast, "statements")
-    assert len(ast.statements) > 0
+    assert len(ast.statements) == 2  # Create command and IF statement
+
+    # Check the first statement (Create command)
+    assert ast.statements[0].cmd_type == "C►"
+    assert ast.statements[0].entity_type == "NODE"
+    assert ast.statements[0].uid == "TestNode"
+    assert ast.statements[0].instruction == "Create test node"
+
+    # Check the second statement (IF conditional)
+    assert hasattr(ast.statements[1], "if_clause")
+    condition_cmd, if_block = ast.statements[1].if_clause
+
+    # Check the condition command
+    assert condition_cmd.cmd_type == "E►"
+    assert condition_cmd.entity_type == "NODE"
+    assert condition_cmd.uid == "TestNode"
+
+    # Check the if block
+    assert len(if_block) == 1
+    assert if_block[0].cmd_type == "C►"
+    assert if_block[0].entity_type == "NODE"
+    assert if_block[0].uid == "TestAlert"
+
+    # Check the else block
+    assert hasattr(ast.statements[1], "else_clause")
+    assert len(ast.statements[1].else_clause) == 1
+    assert ast.statements[1].else_clause[0].cmd_type == "D►"
+    assert ast.statements[1].else_clause[0].entity_type == "NODE"
+    assert ast.statements[1].else_clause[0].uid == "TestNode"
 
 
-def test_parser_invalid_kgml():
+def test_tokenize_kg_block():
+    """
+    Test that tokenization works correctly for KG blocks with nodes and links.
+    """
+    kg_block = (
+        'KG►\n'
+        'KGNODE► NodeA : type="TestNode"\n'
+        'KGLINK► NodeA -> NodeB : type="TestLink"\n'
+        '◄'
+    )
+
+    tokens = tokenize(kg_block)
+    assert len(tokens) > 0
+
+    # Check for expected tokens
+    token_types = [token.type for token in tokens]
+    token_values = [token.value for token in tokens]
+
+    # Check for KG block markers
+    assert "KEYWORD" in token_types
+    assert "KG►" in token_values
+    assert "KGNODE►" in token_values
+    assert "KGLINK►" in token_values
+
+    # Check for symbols and operators
+    assert "SYMBOL" in token_types
+    assert ":" in token_values
+    assert "OP" in token_types
+    assert "->" in token_values
+
+
+def test_parser_valid_kg_block(parser):
+    """
+    Ensure the parser accepts a well-formed KG block.
+    """
+    valid_kg = (
+        'KG►\n'
+        'KGNODE► NodeA : type="TestNode", description="This is a test node"\n'
+        'KGNODE► NodeB : type="TestNode", status="active", priority="high"\n'
+        'KGLINK► NodeA -> NodeB : type="TestLink", weight="5"\n'
+        '◄\n'
+    )
+    parser_instance = parser(valid_kg)
+    ast = parser_instance.parse_program()
+    assert ast is not None
+    assert hasattr(ast, "statements")
+    assert len(ast.statements) == 1
+    assert hasattr(ast.statements[0], "declarations")
+    assert len(ast.statements[0].declarations) == 3
+
+    # Verify node declarations
+    node_declarations = [d for d in ast.statements[0].declarations if hasattr(d, "uid")]
+    assert len(node_declarations) == 2
+    assert node_declarations[0].uid == "NodeA"
+    assert node_declarations[0].fields["type"] == "TestNode"
+    assert node_declarations[0].fields["description"] == "This is a test node"
+
+    # Verify link declaration
+    link_declarations = [d for d in ast.statements[0].declarations if hasattr(d, "source_uid")]
+    assert len(link_declarations) == 1
+    assert link_declarations[0].source_uid == "NodeA"
+    assert link_declarations[0].target_uid == "NodeB"
+    assert link_declarations[0].fields["type"] == "TestLink"
+    assert link_declarations[0].fields["weight"] == "5"
+
+
+def test_parser_invalid_kgml(parser):
     """
     Ensure the parser raises SyntaxError for a malformed KGML string.
     (e.g. missing the closing marker ◄)
@@ -108,8 +242,57 @@ def test_parser_invalid_kgml():
         'C► NODE TestNode "Create test node" ◄\n'
         'E► NODE TestNode "Evaluate test node" '  # Missing ◄ here
     )
+    parser_instance = parser(invalid_kgml)
     with pytest.raises(SyntaxError):
-        _ = parse_kgml(invalid_kgml)
+        _ = parser_instance.parse_program()
+
+
+def test_parser_invalid_kg_block(parser):
+    """
+    Ensure the parser raises SyntaxError for a malformed KG block.
+    """
+    invalid_kg = (
+        'KG►\n'
+        'KGNODE► NodeA : type="TestNode"\n'
+        'KGLINK► NodeA -> '  # Missing target and closing
+    )
+    parser_instance = parser(invalid_kg)
+    with pytest.raises(SyntaxError):
+        _ = parser_instance.parse_program()
+
+
+def test_parser_loop_command(parser):
+    """
+    Ensure the parser correctly handles LOOP commands.
+    """
+    loop_kgml = (
+        'LOOP► "Iterate through all data points" ◄\n'
+        '    C► NODE DataPoint "Create new data point" ◄\n'
+        '    E► NODE DataPoint "Validate data point" ◄\n'
+        '◄\n'
+    )
+    parser_instance = parser(loop_kgml)
+    ast = parser_instance.parse_program()
+    assert ast is not None
+    assert hasattr(ast, "statements")
+    assert len(ast.statements) == 1
+    assert hasattr(ast.statements[0], "condition")
+    assert ast.statements[0].condition == "Iterate through all data points"
+
+    # Check the block content
+    assert hasattr(ast.statements[0], "block")
+    assert len(ast.statements[0].block) == 2
+
+    # Verify the commands inside the loop
+    assert ast.statements[0].block[0].cmd_type == "C►"
+    assert ast.statements[0].block[0].entity_type == "NODE"
+    assert ast.statements[0].block[0].uid == "DataPoint"
+    assert ast.statements[0].block[0].instruction == "Create new data point"
+
+    assert ast.statements[0].block[1].cmd_type == "E►"
+    assert ast.statements[0].block[1].entity_type == "NODE"
+    assert ast.statements[0].block[1].uid == "DataPoint"
+    assert ast.statements[0].block[1].instruction == "Validate data point"
 
 
 # ------------------------------------------------------------------------------
@@ -141,45 +324,31 @@ def test_model_returns_valid_kgml(initial_kg_serialized, reasoning_stats):
     assert validate_kgml(response), "Model response did not parse as valid KGML."
 
 
-def test_reasoning_workflow(initial_kg_serialized, reasoning_stats):
+def test_complex_kgml_structures(reasoning_stats):
     """
-    Simulate a multi-step reasoning process:
-    1. Start with an initial KG prompt.
-    2. Send the prompt to the model.
-    3. Parse the response and update the serialized KG.
-    4. Repeat for several iterations, tracking statistics.
+    Test the model's ability to handle complex KGML structures.
     """
-    num_steps = 3
-    current_prompt = initial_kg_serialized
-    for step in range(num_steps):
-        reasoning_stats["total_prompts"] += 1
-        response = prompt_model(current_prompt, model=CURRENT_MODEL, system_prompt=KGML_SYSTEM_PROMPT)
-        print(f"\n=== Step {step + 1} Response ===\n", response)
-        if validate_kgml(response):
-            reasoning_stats["valid_responses"] += 1
-        else:
-            reasoning_stats["invalid_responses"] += 1
-            reasoning_stats["errors"].append(f"Step {step + 1}: Received invalid KGML response.")
-        # Update the prompt by appending the response, simulating evolving reasoning steps.
-        current_prompt += "\n" + response
+    complex_prompt = (
+        'KG►\n'
+        'KGNODE► Problem : type="ProblemNode", description="Need to analyze sensor data for anomalies"\n'
+        'KGNODE► Context : type="ContextNode", domain="IoT", dataSource="temperature_sensors"\n'
+        'KGLINK► Problem -> Context : type="HasContext", priority="high"\n'
+        '◄\n'
+        'C► NODE Plan "Create a plan to analyze sensor data" ◄\n'
+    )
 
-    assert reasoning_stats["total_prompts"] == num_steps
-    # Depending on the model, we expect at least one valid response.
-    assert reasoning_stats["valid_responses"] >= 1, "Expected at least one valid KGML response."
+    reasoning_stats["total_prompts"] += 1
+    response = prompt_model(complex_prompt, model=CURRENT_MODEL, system_prompt=KGML_SYSTEM_PROMPT)
+    print("\n=== Complex Structure Response ===\n", response)
 
+    if validate_kgml(response):
+        reasoning_stats["valid_responses"] += 1
+    else:
+        reasoning_stats["invalid_responses"] += 1
+        reasoning_stats["errors"].append("Complex structure test: Response not valid KGML.")
 
-# def test_empty_prompt(reasoning_stats):
-#     """
-#     Test behavior when an empty prompt is sent.
-#     """
-#     empty_prompt = ""
-#     response = prompt_model(empty_prompt, model=CURRENT_MODEL)
-#     print("\n=== Empty Prompt Response ===\n", response)
-#     if not validate_kgml(response):
-#         reasoning_stats["invalid_responses"] += 1
-#         reasoning_stats["errors"].append("Empty prompt test: Response not valid KGML as expected.")
-#     assert not validate_kgml(response), "An empty prompt should not yield valid KGML."
-#
+    assert validate_kgml(response), "Complex KGML structure should yield valid KGML response."
+
 
 def test_edge_case_long_prompt(initial_kg_serialized, reasoning_stats):
     """
@@ -194,70 +363,3 @@ def test_edge_case_long_prompt(initial_kg_serialized, reasoning_stats):
         reasoning_stats["invalid_responses"] += 1
         reasoning_stats["errors"].append("Long prompt test: Response not valid KGML.")
     assert validate_kgml(response), "Long prompt should yield valid KGML response."
-
-
-# ------------------------------------------------------------------------------
-# New Iterative Test: Evolving Knowledge Graph Simulation
-# ------------------------------------------------------------------------------
-
-def test_iterative_kg_evolution_verbose(initial_kg_serialized, reasoning_stats):
-    """
-    Simulate an iterative evolution of the Knowledge Graph by sending evolving prompts
-    to the LLM using prompt_model. At each iteration:
-      - Print the current prompt.
-      - Send the prompt to the model and print the response.
-      - Validate and parse the KGML response.
-      - Print the parsed output.
-      - Append the response to the prompt for the next iteration.
-      - Print intermediate reasoning statistics.
-    This verbose test runs for a larger number of iterations to better trace the evolution.
-    """
-    num_iterations = 12  # Increased number of iterations
-    current_prompt = initial_kg_serialized
-    print("\n=== Starting Iterative KG Evolution Verbose Test ===\n", flush=True)
-
-    for iteration in range(1, num_iterations + 1):
-        print(f"\n--- Iteration {iteration} ---", flush=True)
-        print("Current Prompt:", flush=True)
-        print(current_prompt, flush=True)
-
-        # Increment prompt counter and get model response.
-        reasoning_stats["total_prompts"] += 1
-        response = prompt_model(current_prompt, model=CURRENT_MODEL, system_prompt=KGML_SYSTEM_PROMPT)
-        print("\nModel Response:", flush=True)
-        print(response, flush=True)
-
-        # Validate the response.
-        if validate_kgml(response):
-            reasoning_stats["valid_responses"] += 1
-            print("Validation: Response is valid KGML.", flush=True)
-        else:
-            reasoning_stats["invalid_responses"] += 1
-            error_msg = f"Iteration {iteration}: Received invalid KGML response."
-            reasoning_stats["errors"].append(error_msg)
-            print("Validation Error:", error_msg, flush=True)
-
-        # Attempt to parse the response and print the parsed output.
-        try:
-            parsed = parse_kgml(response)
-            print("\nParsed KGML:", flush=True)
-            print(parsed, flush=True)
-        except Exception as e:
-            reasoning_stats["invalid_responses"] += 1
-            error_msg = f"Iteration {iteration}: KGML parsing failed with error: {str(e)}"
-            reasoning_stats["errors"].append(error_msg)
-            print("Parsing Error:", error_msg, flush=True)
-            raise
-
-        # Update the prompt for the next iteration.
-        current_prompt = f"{current_prompt}\n{response}"
-        print("\nUpdated Prompt:", flush=True)
-        print(current_prompt, flush=True)
-
-        # Print intermediate reasoning statistics.
-        print("\nIntermediate Reasoning Stats:", flush=True)
-        print(reasoning_stats, flush=True)
-
-    print("\n=== Completed Iterative KG Evolution Verbose Test ===\n", flush=True)
-    # Final check: ensure that the evolving prompt is not empty.
-    assert current_prompt.strip() != "", "The evolving Knowledge Graph prompt should not be empty after iterations."

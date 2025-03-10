@@ -26,14 +26,9 @@ class KGNode(BaseModel):
     updated_at: Optional[str] = None
 
 
-class KGEdge(BaseModel):
+class KGEdge(KGNode):
     source_uid: str
     target_uid: str
-    type: Optional[str] = None
-    meta_props: Dict[str, Any] = {}
-    # Added audit trail / provenance fields
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
 
 
 ###############################################################################

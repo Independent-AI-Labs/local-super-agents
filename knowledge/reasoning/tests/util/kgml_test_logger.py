@@ -44,11 +44,15 @@ class KGMLTestLogger:
             "valid_responses": 0,
             "invalid_responses": 0,
             "syntax_errors": 0,
-            "execution_errors": 0,
+            "processing_errors": 0,
             "response_times": [],
+            "processing_times": [],  # Add tracking for processing times
             "avg_response_time": None,
+            "avg_processing_time": None,  # Add average processing time
             "max_response_time": None,
             "min_response_time": None,
+            "max_processing_time": None,  # Add max processing time
+            "min_processing_time": None,  # Add min processing time
             "tests": {}
         }
         self._save_stats()
@@ -91,9 +95,11 @@ class KGMLTestLogger:
             "valid_responses": 0,
             "invalid_responses": 0,
             "syntax_errors": 0,
-            "execution_errors": 0,
+            "processing_errors": 0,
             "response_times": [],
+            "processing_times": [],  # Add tracking for processing times
             "avg_response_time": None,
+            "avg_processing_time": None,  # Add average processing time
             "goal_reached": None,
             "iterations_to_goal": None,
         }
@@ -113,7 +119,7 @@ class KGMLTestLogger:
                              response_time: float,
                              is_valid: bool,
                              has_syntax_errors: bool,
-                             execution_result: Optional[Dict[str, Any]] = None) -> None:
+                             processing_result: Optional[Dict[str, Any]] = None) -> None:
         """
         Log a request-response pair for a test iteration.
 
@@ -125,7 +131,7 @@ class KGMLTestLogger:
             response_time: Time in seconds for the model to respond
             is_valid: Whether the response is valid KGML
             has_syntax_errors: Whether the response has syntax errors
-            execution_result: Result of executing the KGML (if available)
+            processing_result: Result of executing the KGML (if available)
         """
         if test_name not in self.stats["tests"]:
             logger.warning(f"Test {test_name} not found in stats. Starting it now.")
@@ -150,11 +156,16 @@ class KGMLTestLogger:
             with open(response_file, "w", encoding="utf-8") as f:
                 f.write(response)
 
-        # Save execution result if available
-        if execution_result is not None:
-            result_file = iter_dir / "execution_result.json"
+        # Extract processing time if available
+        processing_time = None
+        if processing_result is not None:
+            # Save processing result
+            result_file = iter_dir / "processing_result.json"
             with open(result_file, "w", encoding="utf-8") as f:
-                json.dump(execution_result, f, indent=2)
+                json.dump(processing_result, f, indent=2)
+
+            # Extract processing time from the result
+            processing_time = processing_result.get("processing_time")
 
         # Save iteration metadata
         metadata = {
@@ -163,7 +174,8 @@ class KGMLTestLogger:
             "response_time_seconds": response_time,
             "is_valid": is_valid,
             "has_syntax_errors": has_syntax_errors,
-            "execution_success": execution_result.get("success", False) if execution_result else None,
+            "processing_success": processing_result.get("success", False) if processing_result else None,
+            "processing_time_seconds": processing_time  # Include processing time in metadata
         }
         meta_file = iter_dir / "metadata.json"
         with open(meta_file, "w", encoding="utf-8") as f:
@@ -193,8 +205,8 @@ class KGMLTestLogger:
             if has_syntax_errors:
                 test_stats["syntax_errors"] = test_stats.get("syntax_errors", 0) + 1
 
-            if execution_result and not execution_result.get("success", False):
-                test_stats["execution_errors"] = test_stats.get("execution_errors", 0) + 1
+            if processing_result and not processing_result.get("success", False):
+                test_stats["processing_errors"] = test_stats.get("processing_errors", 0) + 1
 
             # Update global stats
             self.stats["total_prompts"] += 1
@@ -216,8 +228,24 @@ class KGMLTestLogger:
             if has_syntax_errors:
                 self.stats["syntax_errors"] = self.stats.get("syntax_errors", 0) + 1
 
-            if execution_result and not execution_result.get("success", False):
-                self.stats["execution_errors"] = self.stats.get("execution_errors", 0) + 1
+            if processing_result and not processing_result.get("success", False):
+                self.stats["processing_errors"] = self.stats.get("processing_errors", 0) + 1
+
+        # Update processing time stats if available
+        if processing_time is not None and processing_time > 0:
+            # Update test stats
+            test_stats.setdefault("processing_times", []).append(processing_time)
+            processing_times = test_stats.get("processing_times", [])
+            if processing_times:
+                test_stats["avg_processing_time"] = sum(processing_times) / len(processing_times)
+
+            # Update global stats
+            self.stats.setdefault("processing_times", []).append(processing_time)
+            all_processing_times = self.stats.get("processing_times", [])
+            if all_processing_times:
+                self.stats["avg_processing_time"] = sum(all_processing_times) / len(all_processing_times)
+                self.stats["max_processing_time"] = max(all_processing_times)
+                self.stats["min_processing_time"] = min(all_processing_times)
 
         self._save_stats()
         logger.info(f"Logged iteration {iteration} for test {test_name}")
@@ -314,13 +342,13 @@ class KGMLTestLogger:
         valid_responses = self.stats.get('valid_responses', 0)
         invalid_responses = self.stats.get('invalid_responses', 0)
         syntax_errors = self.stats.get('syntax_errors', 0)
-        execution_errors = self.stats.get('execution_errors', 0)
+        processing_errors = self.stats.get('processing_errors', 0)
 
         lines.extend([
             f"Valid Responses: {valid_responses} ({valid_responses / total_responses * 100:.1f}%)",
             f"Invalid Responses: {invalid_responses} ({invalid_responses / total_responses * 100:.1f}%)",
             f"Syntax Errors: {syntax_errors} ({syntax_errors / total_responses * 100:.1f}%)",
-            f"Execution Errors: {execution_errors} ({execution_errors / total_responses * 100:.1f}%)",
+            f"Execution Errors: {processing_errors} ({processing_errors / total_responses * 100:.1f}%)",
             f"",
             f"Response Time Statistics",
             f"-----------------------",
@@ -346,6 +374,32 @@ class KGMLTestLogger:
         else:
             lines.append(f"Maximum Response Time: N/A")
 
+        # Add processing time statistics
+        lines.extend([
+            f"",
+            f"Processing Time Statistics",
+            f"-------------------------",
+        ])
+
+        avg_processing_time = self.stats.get('avg_processing_time')
+        min_processing_time = self.stats.get('min_processing_time')
+        max_processing_time = self.stats.get('max_processing_time')
+
+        if avg_processing_time is not None:
+            lines.append(f"Average Processing Time: {avg_processing_time:.2f}s")
+        else:
+            lines.append(f"Average Processing Time: N/A")
+
+        if min_processing_time is not None:
+            lines.append(f"Minimum Processing Time: {min_processing_time:.2f}s")
+        else:
+            lines.append(f"Minimum Processing Time: N/A")
+
+        if max_processing_time is not None:
+            lines.append(f"Maximum Processing Time: {max_processing_time:.2f}s")
+        else:
+            lines.append(f"Maximum Processing Time: N/A")
+
         lines.extend([
             f"",
             f"Test Results",
@@ -366,11 +420,11 @@ class KGMLTestLogger:
             test_responses = max(1, test_stats.get('responses', 1))
             test_valid = test_stats.get('valid_responses', 0)
             test_syntax_errors = test_stats.get('syntax_errors', 0)
-            test_execution_errors = test_stats.get('execution_errors', 0)
+            test_processing_errors = test_stats.get('processing_errors', 0)
 
             lines.append(f"  Valid Responses: {test_valid}/{test_stats.get('responses', 0)} ({test_valid / test_responses * 100:.1f}%)")
             lines.append(f"  Syntax Errors: {test_syntax_errors}/{test_stats.get('responses', 0)} ({test_syntax_errors / test_responses * 100:.1f}%)")
-            lines.append(f"  Execution Errors: {test_execution_errors}/{test_stats.get('responses', 0)} ({test_execution_errors / test_responses * 100:.1f}%)")
+            lines.append(f"  Execution Errors: {test_processing_errors}/{test_stats.get('responses', 0)} ({test_processing_errors / test_responses * 100:.1f}%)")
 
             # Safely format test response time with null check
             test_avg_response_time = test_stats.get('avg_response_time')
@@ -378,5 +432,12 @@ class KGMLTestLogger:
                 lines.append(f"  Avg. Response Time: {test_avg_response_time:.2f}s")
             else:
                 lines.append(f"  Avg. Response Time: N/A")
+
+            # Add test processing time statistics
+            test_avg_processing_time = test_stats.get('avg_processing_time')
+            if test_avg_processing_time is not None:
+                lines.append(f"  Avg. Processing Time: {test_avg_processing_time:.2f}s")
+            else:
+                lines.append(f"  Avg. Processing Time: N/A")
 
         return "\n".join(lines)

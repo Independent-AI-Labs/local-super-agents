@@ -2,7 +2,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 import pytest
 
@@ -250,12 +250,20 @@ class ReasoningEvaluator:
         end_time = time.time()
         response_time = end_time - start_time
 
-        # Validate the response syntax
-        is_valid = validate_kgml(response)
+        # Validate the response syntax and get any error
+        is_valid, error_message = validate_kgml_with_error(response)
         has_syntax_errors = not is_valid
 
         # Log the request-response pair if logger is available
         if self.test_logger and test_name and iteration is not None:
+            # Include execution result with syntax error if validation failed
+            execution_result = None
+            if has_syntax_errors:
+                execution_result = {
+                    "success": False,
+                    "error": f"Syntax error: {error_message}"
+                }
+
             self.test_logger.log_request_response(
                 test_name=test_name,
                 iteration=iteration,
@@ -263,7 +271,8 @@ class ReasoningEvaluator:
                 response=response,
                 response_time=response_time,
                 is_valid=is_valid,
-                has_syntax_errors=has_syntax_errors
+                has_syntax_errors=has_syntax_errors,
+                execution_result=execution_result
             )
 
         return response
@@ -273,13 +282,18 @@ class ReasoningEvaluator:
         Execute the KGML code and return the execution results.
         Also logs the execution results if a test logger is available.
         """
+        start_time = time.time()
         try:
             context = self.executor.execute(kgml_code)
+            end_time = time.time()
+            execution_time = end_time - start_time
+
             result = {
                 "success": True,
                 "execution_log": context.execution_log,
                 "variables": context.variables,
-                "results": context.results
+                "results": context.results,
+                "execution_time": execution_time  # Add execution time to result
             }
 
             # Log execution result if logger is available
@@ -290,7 +304,7 @@ class ReasoningEvaluator:
                     iteration=iteration,
                     request="",  # Empty because we're just updating
                     response="",  # Empty because we're just updating
-                    response_time=0.0,  # Not relevant for this update
+                    response_time=execution_time,  # Now we're passing the actual execution time
                     is_valid=True,  # Not relevant for this update
                     has_syntax_errors=False,  # Not relevant for this update
                     execution_result=result
@@ -299,10 +313,13 @@ class ReasoningEvaluator:
             return result
 
         except Exception as e:
+            end_time = time.time()
+            execution_time = end_time - start_time
             logger.error(f"KGML execution failed: {e}")
             error_result = {
                 "success": False,
-                "error": str(e)
+                "error": str(e),
+                "execution_time": execution_time  # Add execution time even for errors
             }
 
             # Log execution error if logger is available
@@ -313,7 +330,7 @@ class ReasoningEvaluator:
                     iteration=iteration,
                     request="",  # Empty because we're just updating
                     response="",  # Empty because we're just updating
-                    response_time=0.0,  # Not relevant for this update
+                    response_time=execution_time,  # Now we're passing the actual execution time
                     is_valid=True,  # We know it parsed, but execution failed
                     has_syntax_errors=False,  # Not relevant for this update
                     execution_result=error_result
@@ -361,7 +378,8 @@ class ReasoningEvaluator:
             all_responses.append(model_response)
 
             # Validate and execute the response
-            if validate_kgml(model_response):
+            is_valid, error_message = validate_kgml_with_error(model_response)
+            if is_valid:
                 # Execute the KGML
                 result = self.execute_kgml(
                     model_response,
@@ -377,11 +395,12 @@ class ReasoningEvaluator:
                 # Update the KG for the next iteration
                 current_kg = self.serialize_kg()
             else:
-                logger.error(f"Invalid KGML response in iteration {iterations + 1}")
-                execution_results.append({
+                logger.error(f"Invalid KGML response in iteration {iterations + 1}: {error_message}")
+                error_result = {
                     "success": False,
-                    "error": "Invalid KGML syntax"
-                })
+                    "error": f"Invalid KGML syntax: {error_message}"
+                }
+                execution_results.append(error_result)
 
             iterations += 1
 
@@ -419,16 +438,25 @@ def is_plain_text(prompt: str) -> bool:
             re.search(r'(KG►|KGNODE►)', prompt) is not None)
 
 
+def validate_kgml_with_error(kgml_text: str) -> Tuple[bool, Optional[str]]:
+    """
+    Validate that the provided text is valid KGML by attempting to parse it.
+    Returns a tuple of (is_valid, error_message) where error_message is None if valid.
+    """
+    try:
+        _ = parse_kgml(kgml_text)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
 def validate_kgml(kgml_text: str) -> bool:
     """
     Validate that the provided text is valid KGML by attempting to parse it.
     Returns True if parsing succeeds, False otherwise.
     """
-    try:
-        _ = parse_kgml(kgml_text)
-        return True
-    except Exception:
-        return False
+    is_valid, _ = validate_kgml_with_error(kgml_text)
+    return is_valid
 
 
 def format_reasoning_summary(evaluation_results: List[Dict[str, Any]]) -> str:
@@ -508,7 +536,7 @@ def test_single_kgml_execution(knowledge_graph, test_logger):
     # Execute the KGML
     context = executor.execute(kgml_code)
     end_time = time.time()
-    response_time = end_time - start_time
+    execution_time = end_time - start_time
 
     # Log the execution
     test_logger.log_request_response(
@@ -516,14 +544,15 @@ def test_single_kgml_execution(knowledge_graph, test_logger):
         iteration=1,
         request=kgml_code,
         response="Direct execution - no response",
-        response_time=response_time,
+        response_time=execution_time,  # Use actual execution time
         is_valid=True,
         has_syntax_errors=False,
         execution_result={
             "success": True,
             "execution_log": context.execution_log,
             "variables": context.variables,
-            "results": context.results
+            "results": context.results,
+            "execution_time": execution_time  # Include execution time in result
         }
     )
 
@@ -553,7 +582,8 @@ def test_model_kgml_generation(initial_kg_serialized, reasoning_stats, test_logg
     print("\n=== Model Response ===\n", response)
 
     # Validate and track stats
-    if validate_kgml(response):
+    is_valid, error_message = validate_kgml_with_error(response)
+    if is_valid:
         reasoning_stats["valid_responses"] += 1
 
         # Execute the KGML
@@ -567,12 +597,12 @@ def test_model_kgml_generation(initial_kg_serialized, reasoning_stats, test_logg
         test_logger.end_test("model_kgml_generation", goal_reached=True, iterations_to_goal=1)
     else:
         reasoning_stats["invalid_responses"] += 1
-        reasoning_stats["errors"].append("Model returned invalid KGML")
+        reasoning_stats["errors"].append(f"Model returned invalid KGML: {error_message}")
 
         test_logger.end_test("model_kgml_generation", goal_reached=False)
 
     # Assert validity
-    assert validate_kgml(response), "Model response was not valid KGML"
+    assert is_valid, f"Model response was not valid KGML: {error_message}"
 
 
 def test_multi_step_reasoning(initial_kg_serialized, reasoning_stats, test_logger):
@@ -600,7 +630,8 @@ def test_multi_step_reasoning(initial_kg_serialized, reasoning_stats, test_logge
         print(f"\nModel Response {i + 1}:", response)
 
         # Validate and execute
-        if validate_kgml(response):
+        is_valid, error_message = validate_kgml_with_error(response)
+        if is_valid:
             reasoning_stats["valid_responses"] += 1
             result = evaluator.execute_kgml(response, "multi_step_reasoning", i + 1)
             reasoning_stats["execution_results"].append(result)
@@ -609,7 +640,7 @@ def test_multi_step_reasoning(initial_kg_serialized, reasoning_stats, test_logge
             current_kg = evaluator.serialize_kg()
         else:
             reasoning_stats["invalid_responses"] += 1
-            reasoning_stats["errors"].append(f"Iteration {i + 1}: Invalid KGML")
+            reasoning_stats["errors"].append(f"Iteration {i + 1}: Invalid KGML: {error_message}")
             break
 
     # Final checks

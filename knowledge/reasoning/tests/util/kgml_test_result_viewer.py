@@ -16,7 +16,7 @@ from knowledge.reasoning.tests.util.kgml_test_result_ui_util import (
     load_iteration_details,
     create_test_result_chart,
     create_response_time_chart,
-    create_execution_log_chart,
+    create_processing_log_chart,
     generate_run_summary,
     generate_test_summary
 )
@@ -174,25 +174,25 @@ def on_iteration_selected(evt: gr.SelectData, iterations_data: List[Dict]) -> Tu
         if "error" in details:
             return "", "", "", None, f"Error: {details['error']}"
 
-        # Create execution log chart if available
-        execution_log_chart = None
-        if details.get("execution_result"):
-            execution_log_chart = create_execution_log_chart(details["execution_result"])
+        # Create processing log chart if available
+        processing_log_chart = None
+        if details.get("processing_result"):
+            processing_log_chart = create_processing_log_chart(details["processing_result"])
 
-        # Format execution result for display
+        # Format processing result for display
         exec_result_str = ""
-        if details.get("execution_result"):
+        if details.get("processing_result"):
             try:
                 import json
-                exec_result_str = json.dumps(details["execution_result"], indent=2)
+                exec_result_str = json.dumps(details["processing_result"], indent=2)
             except:
-                exec_result_str = str(details["execution_result"])
+                exec_result_str = str(details["processing_result"])
 
         return (
             details.get("request", ""),
             details.get("response", ""),
             exec_result_str,
-            execution_log_chart,
+            processing_log_chart,
             None
         )
     except Exception as e:
@@ -243,6 +243,11 @@ def create_ui():
             max-height: 48px;
             overflow: hidden;
         }
+        
+        .dataframe tbody tr.selected {
+            background-color: rgba(63, 81, 181, 0.2) !important; /* Example: light blue */
+        }
+        
         /* Make sure the content doesn't overflow */
         .dataframe td, .dataframe th {
             white-space: nowrap;
@@ -256,7 +261,7 @@ def create_ui():
         }
     """) as app:
         gr.Markdown("# 📊 KGML Test Results Viewer")
-        # gr.Markdown("Interactive viewer for KGML test data and execution results")
+        # gr.Markdown("Interactive viewer for KGML test data and processing results")
 
         # Create hidden state variables to store full data with paths
         runs_data_state = gr.State([])
@@ -351,8 +356,8 @@ def create_ui():
                 with gr.Row():
                     with gr.Column():
                         gr.Markdown("### Execution Result")
-                        execution_result_text = gr.Code(
-                            label="Result of executing the KGML",
+                        processing_result_text = gr.Code(
+                            label="Result of parsing / executing the KGML",
                             language="json",
                             interactive=False,
                             lines=21,
@@ -360,8 +365,8 @@ def create_ui():
                         )
 
                     with gr.Column():
-                        gr.Markdown("### Execution Log", max_height=300)
-                        execution_log_chart = gr.Plot(label="Visualization of the execution steps")
+                        gr.Markdown("### Processing Graph", max_height=300)
+                        processing_log_chart = gr.Plot(label="Visualization of the processing steps")
 
         # Set up event handlers
         # refresh_button.click(
@@ -411,8 +416,8 @@ def create_ui():
             outputs=[
                 request_text,
                 response_text,
-                execution_result_text,
-                execution_log_chart,
+                processing_result_text,
+                processing_log_chart,
                 error_output
             ]
         ).then(

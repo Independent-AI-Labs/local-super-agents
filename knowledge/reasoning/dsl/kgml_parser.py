@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 
 # ------------------------------------------------------------------------------
@@ -27,22 +27,23 @@ class Token:
         return f"Token({self.type}, {self.value})"
 
 
-# Updated reserved keywords per new grammar.
+# Updated reserved keywords to include KG► and KGNODE►
 RESERVED = {
     "C►", "U►", "D►", "E►", "N►",
-    "IF►", "ELIF►", "ELSE►", "LOOP►", "END►"
+    "IF►", "ELIF►", "ELSE►", "LOOP►", "END►",
+    "KG►", "KGNODE►", "KGLINK►"
 }
 
-# Updated TOKEN_REGEX: we now recognize the closing marker "◄"
+# Updated TOKEN_REGEX to recognize new symbols like ":", "->", and ","
 TOKEN_REGEX = re.compile(
     r"""
-    (?P<KEYWORD>(?:C►|U►|D►|E►|N►|IF►|ELIF►|ELSE►|LOOP►|END►))|
+    (?P<KEYWORD>(?:C►|U►|D►|E►|N►|IF►|ELIF►|ELSE►|LOOP►|END►|KG►|KGNODE►|KGLINK►))|
     (?P<CLOSE>◄)|
     (?P<NUMBER>\d+(\.\d+)?)|
     (?P<STRING>"([^"\\]|\\.)*")|
     (?P<IDENT>[A-Za-z_][A-Za-z0-9_]*)|
-    (?P<OP>(==|!=|<=|>=|[+\-*/<>]))|
-    (?P<SYMBOL>[{}(),:;])|
+    (?P<OP>(==|!=|<=|>=|-\>|[+\-*/<>]))|
+    (?P<SYMBOL>[{}(),:;=])|
     (?P<WS>\s+)
     """, re.VERBOSE
 )
@@ -82,7 +83,7 @@ class Program(ASTNode):
         return f"Program({self.statements})"
 
 
-# A simple command now includes additional fields for entity type, uid, and an optional timeout.
+# A simple command includes fields for entity type, uid, and an optional timeout.
 class SimpleCommand(ASTNode):
     def __init__(
             self,
@@ -131,6 +132,36 @@ class LoopCommand(ASTNode):
         return f"LoopCommand({self.condition}, {self.block})"
 
 
+# New AST Node for KG blocks
+class KGBlock(ASTNode):
+    def __init__(self, declarations: List[ASTNode]):
+        self.declarations = declarations
+
+    def __repr__(self):
+        return f"KGBlock({self.declarations})"
+
+
+# New AST Node for KGNODE declarations
+class KGNodeDeclaration(ASTNode):
+    def __init__(self, uid: str, fields: Dict[str, str]):
+        self.uid = uid
+        self.fields = fields
+
+    def __repr__(self):
+        return f"KGNodeDeclaration({self.uid}, {self.fields})"
+
+
+# New AST Node for KGLINK declarations
+class KGEdgeDeclaration(ASTNode):
+    def __init__(self, source_uid: str, target_uid: str, fields: Dict[str, str]):
+        self.source_uid = source_uid
+        self.target_uid = target_uid
+        self.fields = fields
+
+    def __repr__(self):
+        return f"KGEdgeDeclaration({self.source_uid}->{self.target_uid}, {self.fields})"
+
+
 # ------------------------------------------------------------------------------
 # Parser
 # ------------------------------------------------------------------------------
@@ -142,6 +173,12 @@ class Parser:
 
     def current_token(self) -> Token:
         return self.tokens[self.pos]
+
+    def peek(self, offset: int = 1) -> Token:
+        """Look ahead at a token without consuming it."""
+        if self.pos + offset >= len(self.tokens):
+            return self.tokens[-1]  # Return EOF token if out of bounds
+        return self.tokens[self.pos + offset]
 
     def eat(self, expected_type: Optional[str] = None, expected_value: Optional[str] = None) -> Token:
         token = self.current_token()
@@ -168,6 +205,8 @@ class Parser:
                 return self.parse_if_command()
             elif token.value == "LOOP►":
                 return self.parse_loop_command()
+            elif token.value == "KG►":
+                return self.parse_kg_block()
             else:
                 raise SyntaxError(f"Unexpected keyword {token.value} at pos {token.pos}")
         else:
@@ -288,45 +327,117 @@ class Parser:
             stmts.append(self.parse_statement())
         return stmts
 
+    def parse_kg_block(self) -> KGBlock:
+        """
+        Parses a KG block with the new direct object field syntax.
+
+        Format:
+            KG►
+                KGNODE► uid : key1="value1", key2="value2", ...
+                KGLINK► source_uid -> target_uid : key1="value1", ...
+            ◄
+        """
+        self.eat(TokenType.KEYWORD, expected_value="KG►")
+        declarations = []
+
+        # Parse declarations until we hit the closing marker
+        while (self.current_token().type != TokenType.CLOSE and
+               self.current_token().type != TokenType.EOF):
+            if self.current_token().type == TokenType.KEYWORD:
+                if self.current_token().value == "KGNODE►":
+                    declarations.append(self.parse_kg_node())
+                elif self.current_token().value == "KGLINK►":
+                    declarations.append(self.parse_kg_edge())
+                else:
+                    raise SyntaxError(f"Unexpected keyword in KG block: {self.current_token().value}")
+            else:
+                # Skip any non-keyword tokens (like newlines)
+                self.pos += 1
+
+        # Expect the closing marker
+        self.eat(TokenType.CLOSE, expected_value="◄")
+        return KGBlock(declarations)
+
+    def parse_kg_node(self) -> KGNodeDeclaration:
+        """
+        Parses a KGNODE declaration.
+
+        Format:
+            KGNODE► uid : key1="value1", key2="value2", ...
+        """
+        self.eat(TokenType.KEYWORD, expected_value="KGNODE►")
+        uid_token = self.eat(TokenType.IDENT)
+        uid = uid_token.value
+
+        # Expect a colon
+        self.eat(TokenType.SYMBOL, expected_value=":")
+
+        # Parse the field list
+        fields = self.parse_field_list()
+
+        return KGNodeDeclaration(uid, fields)
+
+    def parse_kg_edge(self) -> KGEdgeDeclaration:
+        """
+        Parses a KGLINK declaration.
+
+        Format:
+            KGLINK► source_uid -> target_uid : key1="value1", ...
+        """
+        self.eat(TokenType.KEYWORD, expected_value="KGLINK►")
+        source_token = self.eat(TokenType.IDENT)
+        source_uid = source_token.value
+
+        # Expect the arrow operator
+        self.eat(TokenType.OP, expected_value="->")
+
+        target_token = self.eat(TokenType.IDENT)
+        target_uid = target_token.value
+
+        # Expect a colon
+        self.eat(TokenType.SYMBOL, expected_value=":")
+
+        # Parse the field list
+        fields = self.parse_field_list()
+
+        return KGEdgeDeclaration(source_uid, target_uid, fields)
+
+    def parse_field_list(self) -> Dict[str, str]:
+        """
+        Parses a list of key-value field assignments.
+
+        Format:
+            key1="value1", key2="value2", ...
+        """
+        fields = {}
+
+        # Parse at least one field
+        key = self.eat(TokenType.IDENT).value
+        # Update here: accept either OP or SYMBOL for the equals sign
+        if self.current_token().type == TokenType.OP and self.current_token().value == "=":
+            self.eat(TokenType.OP, expected_value="=")
+        else:
+            self.eat(TokenType.SYMBOL, expected_value="=")
+        value_token = self.eat(TokenType.STRING)
+        value = self._unquote(value_token.value)
+        fields[key] = value
+
+        # Parse additional fields separated by commas
+        while self.current_token().type == TokenType.SYMBOL and self.current_token().value == ",":
+            self.eat(TokenType.SYMBOL, expected_value=",")
+            key = self.eat(TokenType.IDENT).value
+            # Update here too: accept either OP or SYMBOL for the equals sign
+            if self.current_token().type == TokenType.OP and self.current_token().value == "=":
+                self.eat(TokenType.OP, expected_value="=")
+            else:
+                self.eat(TokenType.SYMBOL, expected_value="=")
+            value_token = self.eat(TokenType.STRING)
+            value = self._unquote(value_token.value)
+            fields[key] = value
+
+        return fields
+
     def _unquote(self, s: str) -> str:
         if s.startswith('"') and s.endswith('"'):
             return bytes(s[1:-1], "utf-8").decode("unicode_escape")
         return s
-
-
-# ------------------------------------------------------------------------------
-# Helper: Parse full KGML text.
-# ------------------------------------------------------------------------------
-
-def parse_kgml(text: str) -> Program:
-    tokens = tokenize(text)
-    parser = Parser(tokens)
-    return parser.parse_program()
-
-
-# ------------------------------------------------------------------------------
-# Example Usage
-# ------------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    example_code = r'''
-C► NODE Sensor01 "Create a sensor node" ◄
-U► NODE Sensor01 "Update sensor configuration" ◄
-D► NODE Sensor01 "Delete sensor node" ◄
-E► NODE Sensor01 "Evaluate sensor status" ◄
-N► 30 "Navigate graph starting from sensor node" ◄
-IF► E► NODE ReasonStep_1 "Check evaluation result is successful" ◄
-    C► LINK ActionMeta_1 "To ReasonStep_1" ◄
-ELSE►
-    U► NODE ReasonStep_1 "Update with error message: Evaluation failed" ◄
-◄
-LOOP► "while sensor reading != 0" ◄
-    U► NODE Sensor01 "Adjust sensor parameters" ◄
-◄
-'''
-    try:
-        ast = parse_kgml(example_code)
-        print("Parsed AST:")
-        print(ast)
-    except SyntaxError as e:
-        print("Syntax error:", e)
