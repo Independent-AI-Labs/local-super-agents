@@ -95,29 +95,34 @@ pytest knowledge/reasoning/kgml_integration_tests.py::test_model_kgml_generation
 
 ### Viewing Test Results
 
-The view-test-results.py script provides a command-line interface to explore test results:
+# KGML Test Results Viewer
+
+A Gradio-based UI for exploring and analyzing KGML test runs.
+## Usage
+
+Run the application:
 
 ```bash
-# List all test runs
-python view_test_results.py list-runs
-
-# Show details of a specific run
-python view_test_results.py show-run 20250309_120000
-
-# List all iterations for a test
-python view_test_results.py list-iterations 20250309_120000 model_kgml_generation
-
-# Show details of a specific iteration
-python view_test_results.py show-iteration 20250309_120000 model_kgml_generation 1
+python kgml_test_result_ui.py
 ```
 
-### Debugging KGML Execution
-
-For debugging KGML execution outside of the test framework:
+### Options
 
 ```bash
-python debug_kgml_executor.py create_nodes
+python kgml_test_result_ui.py --logs-dir="/path/to/logs" --port=8080 --debug --share
 ```
+
+- `--logs-dir`: Directory for test logs (default: "kgml_test_logs")
+- `--port`: Server port (default: 7860)
+- `--debug`: Enable debug mode
+- `--share`: Create a shareable link
+
+## Features
+
+- Browse test runs, tests, and iterations
+- View request-response pairs
+- Analyze execution results
+- Visualize test statistics
 
 ## Test Problems
 
