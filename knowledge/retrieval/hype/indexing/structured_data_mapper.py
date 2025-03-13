@@ -17,6 +17,7 @@ from typing import List, Tuple, Dict
 
 import psutil
 
+from compliance.services.logging_service import DEFAULT_LOGGER
 from knowledge.retrieval.hype.util.search_util import build_automaton_from_strings, simple_aho_corasick_match, get_pattern_match_length
 
 DEFAULT_ITEM_BREAK_SEQUENCE_STR = '\r\n'
@@ -424,7 +425,7 @@ def update_offsets(file_path: str, metadata_output_dir: str):
     # Iterate over sorted metadata files to collect last integers
     for filename in metadata_files:
         metadata_file_path = os.path.join(metadata_output_dir, filename)
-        with open(metadata_file_path, 'r', 'utf-8') as file:
+        with open(metadata_file_path, 'r') as file:
             last_line = file.readlines()[-1]
             last_integer = int(last_line.split(',')[-1])  # Get the last integer from the last line
             last_integers.append(last_integer)
@@ -445,7 +446,7 @@ def update_offsets(file_path: str, metadata_output_dir: str):
     offsets_data = []
 
     if os.path.exists(offsets_file_path):
-        with open(offsets_file_path, 'r', 'utf-8') as file:
+        with open(offsets_file_path, 'r') as file:
             reader = csv.reader(file)
             offsets_data = [row for row in reader]
 
@@ -464,7 +465,7 @@ def update_offsets(file_path: str, metadata_output_dir: str):
     DEFAULT_LOGGER.log_debug(new_offsets_data)
 
     # Write the updated offsets data back to offsets.csv
-    with open(offsets_file_path, 'w', newline='', 'utf-8') as file:
+    with open(offsets_file_path, 'w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerows(new_offsets_data)
 

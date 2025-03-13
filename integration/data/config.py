@@ -26,8 +26,8 @@ OLLAMA_PORT = os.getenv('OLLAMA_PORT', 11434)
 OLLAMA_BASE_URL = os.getenv('OPEN_WEBUI_BASE_URL', f'http://127.0.0.1:{OLLAMA_PORT}')
 OPEN_WEBUI_PORT = os.getenv('OPEN_WEBUI_PORT', 8080)
 OPEN_WEBUI_BASE_URL = os.getenv('OPEN_WEBUI_BASE_URL', f'http://127.0.0.1:{OPEN_WEBUI_PORT}')
-OPEN_WEBUI_EMAIL = os.getenv('OPEN_WEBUI_EMAIL', '')
-OPEN_WEBUI_PASSWORD = os.getenv('OPEN_WEBUI_PASSWORD', '')
+OPEN_WEBUI_EMAIL = os.getenv('OPEN_WEBUI_EMAIL', 'v@test.com')
+OPEN_WEBUI_PASSWORD = os.getenv('OPEN_WEBUI_PASSWORD', 'test')
 
 OPEN_WEBUI_EXT_PORT = 8443  # The external port to serve HTTPS traffic
 WEBUI_SSL_CERT_FILE = os.getenv('WEBUI_SSL_CERT_FILE', fr'{INSTALL_PATH}\certs\certificate.crt')
@@ -36,9 +36,9 @@ WEBUI_SSL_KEY_FILE = os.getenv('WEBUI_SSL_KEY_FILE', fr'{INSTALL_PATH}\certs\pri
 SEARXNG_BASE_URL = os.getenv('SEARXNG_BASE_URL', f'{AGENTS_VM_ADDRESS}:8888')
 CHAT_ID = os.getenv('CHAT_ID', '')
 
-OLLAMA_ENV = os.getenv('DEFAULT_ENV', 'llm')
+OLLAMA_ENV = os.getenv('OLLAMA_ENV', 'llm')
 DEFAULT_ENV = os.getenv('DEFAULT_ENV', 'lsa')
-DEFAULT_LLM = os.getenv('DEFAULT_LLM', 'internlm_7b')
+DEFAULT_LLM = os.getenv('DEFAULT_LLM', 'qwen2.5-coder:14b')
 
 CACHE_DIR = os.getenv('CACHE_DIR', '')
 LOGS_DIR = os.getenv('LOGS_DIR', fr'{INSTALL_PATH}\.agents\logs')
@@ -79,6 +79,6 @@ DEFAULT_MODELFILE = fr'{INSTALL_PATH}\.agents\default.Modelfile'
 KGML_SYSTEM_PROMPT = fr'{INSTALL_PATH}\agents\knowledge\reasoning\prompts\KGML'
 
 WEB_SEARCH_MODEL = os.getenv('WEB_SEARCH_MODEL', 'qwen2.5-coder:14b')
-TOP_N_WEB_SEARCH_RESULTS = os.getenv('TOP_N_WEB_SEARCH_RESULTS', 24)
+TOP_N_WEB_SEARCH_RESULTS = os.getenv('TOP_N_WEB_SEARCH_RESULTS', 5)
 DEFAULT_WEB_PAGE_TIMEOUT = os.getenv('DEFAULT_WEB_PAGE_TIMEOUT', 5)
 MAX_WEB_SCRAPE_WORKERS_PER_SEARCH = os.getenv('MAX_WEB_SCRAPE_WORKERS_PER_SEARCH', 8)

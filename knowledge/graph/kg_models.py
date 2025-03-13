@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG)
 ###############################################################################
 
 class KGNode(BaseModel):
-    uid: Optional[str]
+    uid: Optional[str] = None
     type: Optional[str] = None
     meta_props: Dict[str, Any] = {}
     # Added audit trail / provenance fields

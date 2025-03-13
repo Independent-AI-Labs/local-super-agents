@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 import time
 from pathlib import Path
@@ -66,18 +67,40 @@ class KGMLTestLogger:
         iter_dir = test_dir / f"iteration_{iteration}"
         iter_dir.mkdir(exist_ok=True)
 
-        # Write request
+        # Load existing metadata if it exists
+        metadata_file = iter_dir / "metadata.json"
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, "r", encoding="utf-8") as f:
+                    metadata = json.load(f)
+            except json.JSONDecodeError:
+                # If file exists but is corrupt, start with new metadata
+                metadata = {}
+        else:
+            metadata = {}
+
+        # Write request if provided
         if request:
             with open(iter_dir / "request.kgml", "w", encoding="utf-8") as f:
                 f.write(request)
+            # Only update response_time when we have a real request (not an update)
+            metadata["response_time"] = response_time
 
-        # Write response
+        # Write response if provided
         if response:
             with open(iter_dir / "response.kgml", "w", encoding="utf-8") as f:
                 f.write(response)
 
-        # Write execution result if provided
+        # Update metadata from parameters - don't overwrite response_time if it's just an update
+        metadata.update({
+            "is_valid": is_valid,
+            "has_syntax_errors": has_syntax_errors,
+            "timestamp": time.time()
+        })
+
+        # Add execution information if provided
         if execution_result:
+            # Create or update execution_result.txt
             with open(iter_dir / "execution_result.txt", "w", encoding="utf-8") as f:
                 f.write(f"Success: {execution_result.get('success', False)}\n")
                 if 'error' in execution_result:
@@ -89,31 +112,44 @@ class KGMLTestLogger:
                     for log_entry in execution_result['execution_log']:
                         f.write(f"- {log_entry}\n")
 
-        # Save metadata to JSON file
-        metadata = {
-            "is_valid": is_valid,
-            "has_syntax_errors": has_syntax_errors,
-            "response_time": response_time,
-            "execution_success": execution_result.get("success", None) if execution_result else None,
-            "timestamp": time.time()
-        }
+            # Add execution information to metadata
+            metadata["execution_success"] = execution_result.get("success", False)
+            metadata["execution_time"] = execution_result.get("execution_time", 0.0)
 
-        with open(iter_dir / "metadata.json", "w", encoding="utf-8") as f:
-            import json
+        # Write updated metadata
+        with open(metadata_file, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 
-        # Update test data
-        iteration_data = {
-            "response_time": response_time,
-            "is_valid": is_valid,
-            "has_syntax_errors": has_syntax_errors,
-            "execution_success": execution_result.get("success", False) if execution_result else None
-        }
-
-        # Add to test data
+        # Update test data structure
+        # Ensure we have enough entries in the iterations list
         while len(self.test_data[test_name]["iterations"]) < iteration:
             self.test_data[test_name]["iterations"].append(None)
 
+        # Preserve existing data we might have stored
+        existing_data = {}
+        if len(self.test_data[test_name]["iterations"]) >= iteration:
+            if self.test_data[test_name]["iterations"][iteration - 1] is not None:
+                existing_data = self.test_data[test_name]["iterations"][iteration - 1]
+
+        # Update with new data, preserving existing values if not provided in this update
+        iteration_data = existing_data.copy()
+
+        # Don't overwrite response_time with empty updates
+        if request:
+            iteration_data["response_time"] = response_time
+
+        # Update other fields
+        iteration_data.update({
+            "is_valid": is_valid,
+            "has_syntax_errors": has_syntax_errors,
+        })
+
+        # Add execution data if provided
+        if execution_result:
+            iteration_data["execution_success"] = execution_result.get("success", False)
+            iteration_data["execution_time"] = execution_result.get("execution_time", 0.0)
+
+        # Store the updated data
         if len(self.test_data[test_name]["iterations"]) == iteration - 1:
             self.test_data[test_name]["iterations"].append(iteration_data)
         else:
@@ -145,10 +181,16 @@ class KGMLTestLogger:
             for i, iter_data in enumerate(self.test_data[test_name]["iterations"], 1):
                 if iter_data:
                     status = "✓" if iter_data.get("is_valid", False) else "✗"
+                    resp_time = f"{iter_data.get('response_time', 0.0):.2f}s"
+
                     exec_status = ""
+                    exec_time = ""
                     if iter_data.get("execution_success") is not None:
                         exec_status = "Execution: " + ("✓" if iter_data["execution_success"] else "✗")
-                    f.write(f"  {i}: Response Valid: {status} {exec_status} ({iter_data['response_time']:.2f}s)\n")
+                        if "execution_time" in iter_data:
+                            exec_time = f" ({iter_data['execution_time']:.2f}s)"
+
+                    f.write(f"  {i}: Response Valid: {status} ({resp_time}) {exec_status}{exec_time}\n")
 
     def end_run(self):
         """Finalize the test run."""

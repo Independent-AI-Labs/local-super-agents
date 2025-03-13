@@ -1,7 +1,7 @@
 """
-KGML Test Helpers
+KGML Reasoning Evaluator - Fixed Version
 
-This module contains helper functions and classes for KGML integration tests.
+This module contains the ReasoningEvaluator class with fixes for the timing issue.
 """
 import logging
 import re
@@ -12,8 +12,6 @@ from knowledge.graph.kg_models import KnowledgeGraph, KGNode, KGEdge
 from knowledge.reasoning.dsl.kgml_executor import KGMLExecutor
 from knowledge.reasoning.tests.util.kgml_test_helpers import validate_kgml_with_error
 from knowledge.reasoning.tests.util.kgml_test_logger import KGMLTestLogger
-
-# Import the new parser class and tokenizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -140,6 +138,11 @@ class ReasoningEvaluator:
         end_time = time.time()
         response_time = end_time - start_time
 
+        # Make sure response_time is never 0 (minimum 0.001s)
+        if response_time <= 0:
+            response_time = 0.001
+            logger.warning(f"Response time was 0 or negative, setting to {response_time}s")
+
         # Validate the response syntax and get any error
         is_valid, error_message = validate_kgml_with_error(response)
         has_syntax_errors = not is_valid
@@ -170,7 +173,7 @@ class ReasoningEvaluator:
     def execute_kgml(self, kgml_code: str, test_name: Optional[str] = None, iteration: Optional[int] = None) -> Dict[str, Any]:
         """
         Execute the KGML code and return the execution results.
-        Also logs the execution results if a test logger is available.
+        Logs the execution results without overwriting response timing if a test logger is available.
         """
         start_time = time.time()
         try:
@@ -178,23 +181,28 @@ class ReasoningEvaluator:
             end_time = time.time()
             execution_time = end_time - start_time
 
+            # Make sure execution_time is never 0 (minimum 0.001s)
+            if execution_time <= 0:
+                execution_time = 0.001
+                logger.warning(f"Execution time was 0 or negative, setting to {execution_time}s")
+
             result = {
                 "success": True,
                 "execution_log": context.execution_log,
                 "variables": context.variables,
                 "results": context.results,
-                "execution_time": execution_time  # Add execution time to result
+                "execution_time": execution_time
             }
 
             # Log execution result if logger is available
             if self.test_logger and test_name and iteration is not None:
-                # Update the existing log entry with execution results
+                # Update without overwriting response time
                 self.test_logger.log_request_response(
                     test_name=test_name,
                     iteration=iteration,
                     request="",  # Empty because we're just updating
                     response="",  # Empty because we're just updating
-                    response_time=execution_time,  # Now we're passing the actual execution time
+                    response_time=0.0,  # This is ignored in the fixed logger when request is empty
                     is_valid=True,  # Not relevant for this update
                     has_syntax_errors=False,  # Not relevant for this update
                     execution_result=result
@@ -205,23 +213,29 @@ class ReasoningEvaluator:
         except Exception as e:
             end_time = time.time()
             execution_time = end_time - start_time
+
+            # Make sure execution_time is never 0 (minimum 0.001s)
+            if execution_time <= 0:
+                execution_time = 0.001
+                logger.warning(f"Execution time was 0 or negative, setting to {execution_time}s")
+
             logger.error(f"KGML execution failed: {e}")
             error_result = {
                 "success": False,
                 "error": str(e),
-                "execution_time": execution_time  # Add execution time even for errors
+                "execution_time": execution_time
             }
 
             # Log execution error if logger is available
             if self.test_logger and test_name and iteration is not None:
-                # Update the existing log entry with execution error
+                # Update without overwriting response time
                 self.test_logger.log_request_response(
                     test_name=test_name,
                     iteration=iteration,
                     request="",  # Empty because we're just updating
                     response="",  # Empty because we're just updating
-                    response_time=execution_time,  # Now we're passing the actual execution time
-                    is_valid=True,  # We know it parsed, but execution failed
+                    response_time=0.0,  # This is ignored in the fixed logger when request is empty
+                    is_valid=True,  # Syntax is valid (execution just failed)
                     has_syntax_errors=False,  # Not relevant for this update
                     execution_result=error_result
                 )

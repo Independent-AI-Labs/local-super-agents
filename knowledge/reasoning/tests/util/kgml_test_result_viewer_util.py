@@ -524,7 +524,24 @@ def load_test_iterations(test_path: str) -> List[Dict[str, Any]]:
         if not iter_dir.is_dir() or not iter_dir.name.startswith("iteration_"):
             continue
 
-        # Try to load from the metadata.json file
+        # Extract iteration number
+        try:
+            iteration_num = int(iter_dir.name.split("_")[-1])
+        except:
+            iteration_num = 0
+
+        # Check for request and response files
+        has_request = (iter_dir / "request.kgml").exists()
+        has_response = (iter_dir / "response.kgml").exists()
+
+        # Initialize variables
+        is_valid = False
+        exec_success = None
+        response_time = None
+        execution_time = None
+        total_time = None
+
+        # Try to load from the metadata.json file first
         meta_file = iter_dir / "metadata.json"
         if meta_file.exists():
             try:
@@ -532,100 +549,79 @@ def load_test_iterations(test_path: str) -> List[Dict[str, Any]]:
                     import json
                     metadata = json.load(f)
 
-                # Extract iteration number
-                try:
-                    iteration_num = int(iter_dir.name.split("_")[-1])
-                except:
-                    iteration_num = 0
+                # Extract timing information
+                is_valid = metadata.get("is_valid", False)
+                exec_success = metadata.get("execution_success", None)
+                response_time = metadata.get("response_time", None)
 
-                # Check for request and response files
-                has_request = (iter_dir / "request.kgml").exists()
-                has_response = (iter_dir / "response.kgml").exists()
-
-                # Format response time properly
-                response_time = metadata.get('response_time', 0)
-                if response_time is not None and response_time > 0:
-                    response_time_str = f"{response_time:.2f}s"
-                else:
-                    response_time_str = "N/A"
-
-                # Set iteration status
-                if metadata.get("is_valid", False):
-                    if metadata.get("execution_success", False):
-                        status = "✅ SUCCESSFUL EXECUTION"
-                    else:
-                        status = "⚠️ FAILED EXECUTION"
-                else:
-                    status = "🛑 INVALID KGML"
-
-                iter_info = {
-                    "iteration": iteration_num,
-                    "status": status,
-                    "response_time": response_time_str,
-                    "response_time_value": response_time or 0,  # For sorting
-                    "is_valid": "Yes" if metadata.get("is_valid", False) else "No",
-                    "processing_success": "Yes" if metadata.get("execution_success", False) else "No",
-                    "path": str(iter_dir)
-                }
-                iterations.append(iter_info)
-                continue
+                # Check execution_result.txt for execution time
+                exec_result_file = iter_dir / "execution_result.txt"
+                if exec_result_file.exists():
+                    with open(exec_result_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        for line in content.split('\n'):
+                            if line.startswith("Execution Time:"):
+                                try:
+                                    execution_time = float(line.split(":", 1)[1].strip().rstrip("s"))
+                                except (ValueError, IndexError):
+                                    pass
             except Exception as e:
                 logger.error(f"Error reading metadata for {iter_dir}: {e}")
 
-        # Fall back to checking for files if metadata.json doesn't exist or has errors
-        has_request = (iter_dir / "request.kgml").exists()
-        has_response = (iter_dir / "response.kgml").exists()
-
-        if not (has_request or has_response):
-            continue
-
-        # Create basic metadata if file doesn't exist
-        try:
-            iteration_num = int(iter_dir.name.split("_")[-1])
-
-            # Check execution result
+        # If metadata doesn't exist, try to extract information from execution_result.txt
+        if not meta_file.exists() or response_time is None:
             exec_result_file = iter_dir / "execution_result.txt"
-            execution_success = None
-            response_time = "N/A"
-
             if exec_result_file.exists():
-                with open(exec_result_file, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    for line in f:
-                        if line.startswith("Success:"):
-                            exec_success_str = line.split(":", 1)[1].strip().lower()
-                            execution_success = "true" in exec_success_str
-                        elif line.startswith("Execution Time:"):
-                            try:
-                                time_val = float(line.split(":", 1)[1].strip().rstrip("s"))
-                                response_time = f"{time_val:.2f}s"
-                            except:
-                                pass
+                try:
+                    with open(exec_result_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        for line in content.split('\n'):
+                            if line.startswith("Success:"):
+                                exec_success_str = line.split(":", 1)[1].strip().lower()
+                                exec_success = "true" in exec_success_str
+                            elif line.startswith("Execution Time:"):
+                                try:
+                                    execution_time = float(line.split(":", 1)[1].strip().rstrip("s"))
+                                except (ValueError, IndexError):
+                                    pass
+                except Exception as e:
+                    logger.error(f"Error reading execution result for {iter_dir}: {e}")
 
-            # Determine status
-            if has_response:
-                if execution_success is True:
-                    status = "✅ SUCCESSFUL EXECUTION"
-                elif execution_success is False:
-                    status = "⚠️ FAILED EXECUTION"
-                else:
-                    status = "⚠️ UNKNOWN"
+        # Calculate total time (response + execution if both available)
+        if response_time is not None:
+            total_time = response_time
+            if execution_time is not None:
+                total_time += execution_time
+        elif execution_time is not None:
+            total_time = execution_time
+
+        # Format time string
+        if total_time is not None and total_time > 0:
+            time_str = f"{total_time:.2f}s"
+        else:
+            time_str = "N/A"
+
+        # Determine status
+        if has_response:
+            is_valid = True
+            if exec_success is True:
+                status = "✅ SUCCESSFUL EXECUTION"
+            elif exec_success is False:
+                status = "⚠️ FAILED EXECUTION"
             else:
-                status = "🛑 INVALID KGML"
+                status = "⚠️ UNKNOWN ERROR"
+        else:
+            status = "🛑 INVALID KGML"
 
-            iterations.append({
-                "iteration": iteration_num,
-                "status": status,
-                "response_time": response_time,
-                "response_time_value": 0,
-                "is_valid": "Yes" if has_response else "No",
-                "processing_success": "Yes" if execution_success is True else "No" if execution_success is False else "Unknown",
-                "path": str(iter_dir)
-            })
-
-        except Exception as e:
-            logger.error(f"Error processing iteration {iter_dir}: {e}")
-            continue
+        iterations.append({
+            "iteration": iteration_num,
+            "status": status,
+            "response_time": time_str,
+            "response_time_value": total_time or 0,  # For sorting
+            "is_valid": "Yes" if is_valid else "No",
+            "processing_success": "Yes" if exec_success is True else "No" if exec_success is False else "Unknown",
+            "path": str(iter_dir)
+        })
 
     # Sort by iteration number
     return sorted(iterations, key=lambda x: x["iteration"])

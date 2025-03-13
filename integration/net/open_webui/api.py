@@ -12,7 +12,7 @@ CHATS = {}
 
 
 # TODO Support Websocket (sessions).
-# TODO Create models for all objects used below.
+# TODO Create models for all message objects used below.
 
 def authenticate(email: str = None, password: str = None) -> str:
     """
@@ -77,6 +77,8 @@ def update_chat_on_server(chat_id: str, chat_data: dict) -> dict:
     POST /api/v1/chats/{chat_id} with updated chat data.
     This is how we “sync” our local CHATS[chat_id] data back to the server.
     """
+    authenticate()
+
     headers = {
         "Authorization": f"Bearer {API_TOKEN}",
         "Content-Type": "application/json"
@@ -277,3 +279,62 @@ def prepare_chat_history(
     update_chat_on_server(chat_id, chat_data)
 
     return chat_id, chat_data, assistant_message_stub_id
+
+
+def initialize_dedicated_conversation(
+        initial_message: str,
+        chat_id: str = None,
+        model: str = None,
+        title: str = "New Chat"
+) -> (str, Dict, str):
+    """
+    Creates a new dedicated chat and initializes it with an initial message.
+    This is especially useful for task-dedicated chats where we want to set
+    the initial context before any user interaction.
+
+    Args:
+        initial_message: The initial message to populate the chat with
+        chat_id: Optional existing chat ID, or None to create a new chat
+        model: The model to use for the chat
+        title: The title for the new chat
+
+    Returns:
+        Tuple of (chat_id, chat_data, assistant_message_id)
+    """
+    authenticate()
+
+    # Create a new chat if needed
+    if not chat_id:
+        new_chat_data = create_new_chat(model=model, title=title)
+        chat_id = new_chat_data["id"]
+        CHATS[chat_id] = new_chat_data["chat"]
+    elif chat_id not in CHATS:
+        raise ValueError(f"Chat ID '{chat_id}' not found in local store.")
+
+    chat_data = CHATS[chat_id]
+
+    # Add the initial system message
+    now_secs = int(time.time())
+    system_message_id = str(uuid.uuid4())
+
+    system_msg_obj = {
+        "id": system_message_id,
+        "parentId": None,
+        "childrenIds": [],
+        "role": "assistant",
+        "content": initial_message,
+        "model": model,
+        "modelIdx": 0,
+        "userContext": None,
+        "timestamp": now_secs
+    }
+
+    # Insert into chat_data
+    chat_data["history"]["messages"][system_message_id] = system_msg_obj
+    chat_data["history"]["currentId"] = system_message_id
+    chat_data["messages"].append(system_msg_obj)
+
+    # Update the remote chat
+    update_chat_on_server(chat_id, chat_data)
+
+    return chat_id, chat_data, system_message_id

@@ -2,6 +2,8 @@
 KGML Test Parameters and Fixtures
 
 This module contains constants, configuration, and fixtures for KGML integration tests.
+
+TODO These need to be loaded from a file!
 """
 import pytest
 
@@ -133,3 +135,15 @@ def problem_definitions():
             "difficulty": "advanced"
         }
     ]
+
+
+@pytest.fixture
+def complex_problem_definition():
+    return (
+        'KG►\n'
+        'KGNODE► Problem : type="ProblemNode", description="Need to analyze sensor data for anomalies"\n'
+        'KGNODE► Context : type="ContextNode", domain="IoT", dataSource="temperature_sensors"\n'
+        'KGLINK► Problem -> Context : type="HasContext", priority="high"\n'
+        '◄\n'
+        'C► NODE Plan "Create a plan to analyze sensor data" ◄\n'
+    )

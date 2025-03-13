@@ -8,6 +8,7 @@ from typing import Tuple, List
 import PyPDF2
 import docx
 
+from compliance.services.logging_service import DEFAULT_LOGGER
 from knowledge.retrieval.hype.data.file_type_support import TEXT_BASED_EXTENSIONS
 from knowledge.retrieval.hype.data.models import FileNode
 from knowledge.retrieval.hype.indexing.line_indexing import extract_text_and_line_indices
@@ -102,7 +103,7 @@ def read_mmap(file_path: str, start_offset: int, end_offset: int) -> str:
     :param end_offset: The end offset (in bytes) to read to.
     :return: The string content read from the specified file portion.
     """
-    with open(file_path, 'r+b', buffering=0, 'utf-8') as f:
+    with open(file_path, 'r+b', buffering=0) as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
         mm.seek(start_offset)
         block_data = mm.read(end_offset - mm.tell())
@@ -180,7 +181,7 @@ def extract_pdf_content(file_path: str) -> Tuple[str, List[int], bool]:
     Returns:
         Tuple[str, List[int]]: Extracted content as a string and list of line start indices.
     """
-    with open(file_path, 'rb', buffering=0, 'utf-8') as file:
+    with open(file_path, 'rb', buffering=0) as file:
         pdf_reader = PyPDF2.PdfFileReader(file)
         text = []
         line_indices = [0]

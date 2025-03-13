@@ -90,7 +90,7 @@ def test_single_kgml_execution(knowledge_graph, test_logger):
         test_name="single_kgml_execution",
         iteration=1,
         request=kgml_code,
-        response="Direct execution - no response",
+        response="DIRECT REQUEST EXECUTION",
         response_time=execution_time,  # Use actual execution time
         is_valid=True,
         has_syntax_errors=False,
@@ -323,19 +323,10 @@ def test_complex_kgml_structures(reasoning_stats, test_logger):
     """
     test_logger.start_test("complex_kgml_structures", {"description": "Testing model with complex KGML structures"})
 
-    complex_prompt = (
-        'KG►\n'
-        'KGNODE► Problem : type="ProblemNode", description="Need to analyze sensor data for anomalies"\n'
-        'KGNODE► Context : type="ContextNode", domain="IoT", dataSource="temperature_sensors"\n'
-        'KGLINK► Problem -> Context : type="HasContext", priority="high"\n'
-        '◄\n'
-        'C► NODE Plan "Create a plan to analyze sensor data" ◄\n'
-    )
-
     evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
 
     reasoning_stats["total_prompts"] += 1
-    response = evaluator.prompt_model_with_kg(complex_prompt, "complex_kgml_structures", 1)
+    response = evaluator.prompt_model_with_kg(COMPLEX_PROMPT, "complex_kgml_structures", 1)
     print("\n=== Complex Structure Response ===\n", response)
 
     is_valid, error_message = validate_kgml_with_error(response)
