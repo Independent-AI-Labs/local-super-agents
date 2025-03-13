@@ -39,6 +39,7 @@ CHAT_ID = os.getenv('CHAT_ID', '')
 OLLAMA_ENV = os.getenv('OLLAMA_ENV', 'llm')
 DEFAULT_ENV = os.getenv('DEFAULT_ENV', 'lsa')
 DEFAULT_LLM = os.getenv('DEFAULT_LLM', 'qwen2.5-coder:14b')
+DEFAULT_PIPELINE = os.getenv('DEFAULT_PIPELINE', 'web_search_pipeline')
 
 CACHE_DIR = os.getenv('CACHE_DIR', '')
 LOGS_DIR = os.getenv('LOGS_DIR', fr'{INSTALL_PATH}\.agents\logs')
