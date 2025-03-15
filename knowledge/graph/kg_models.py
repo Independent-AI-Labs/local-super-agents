@@ -1,34 +1,65 @@
 import datetime
+import importlib
 import json
 import logging
 import threading
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Dict, Any, List, Callable, Optional, Tuple
+from typing import Dict, Any, List, Callable, Optional, Tuple, Type
 
 import networkx as nx
 from pydantic import BaseModel
 
-# Set up logging (adjust as needed)
+# Global variable for the meta key used to store the class name.
+CLASS_NAME_KEY = "class_name"
+
+# Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
 
 ###############################################################################
-# Pydantic Models for Nodes and Edges with Provenance Fields
+# Base Models with Automatic Class Name Injection
 ###############################################################################
 
 class KGNode(BaseModel):
     uid: Optional[str] = None
     type: Optional[str] = None
     meta_props: Dict[str, Any] = {}
-    # Added audit trail / provenance fields
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+    def __init__(self, **data: Any):
+        super().__init__(**data)
+        # Automatically set the global class name key to the fully qualified class name.
+        if CLASS_NAME_KEY not in self.meta_props:
+            self.meta_props[CLASS_NAME_KEY] = f"{self.__class__.__module__}.{self.__class__.__name__}"
+
+    class Config:
+        extra = "allow"
 
 
 class KGEdge(KGNode):
     source_uid: str
     target_uid: str
+    # Inherits __init__ from KGNode, so meta_props is auto-populated.
+
+
+###############################################################################
+# Helper Function for Dynamic Class Loading
+###############################################################################
+
+def load_class_from_name(class_name: str, default: Type[BaseModel]) -> Type[BaseModel]:
+    """
+    Dynamically load a class given its fully qualified name.
+    On error, log and return the default class.
+    """
+    try:
+        module_name, cls_name = class_name.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        return getattr(module, cls_name)
+    except Exception as e:
+        logging.error(f"Error loading class '{class_name}': {e}")
+        return default
 
 
 ###############################################################################
@@ -60,7 +91,7 @@ class FilePersistenceBackend(PersistenceBackend):
         kg.logger.debug(f"Graph saved to {self.file_path}")
 
     def load(self) -> "KnowledgeGraph":
-        with open(self.file_path, "r", 'utf-8') as f:
+        with open(self.file_path, "r") as f:
             data = json.load(f)
         graph = nx.node_link_graph(data, edges="links")
         kg = KnowledgeGraph()
@@ -70,7 +101,7 @@ class FilePersistenceBackend(PersistenceBackend):
 
 
 ###############################################################################
-# The KnowledgeGraph Class with Extended Versioning and Audit Trail
+# The KnowledgeGraph Class with Automated Restoration Using meta_props
 ###############################################################################
 
 class KnowledgeGraph:
@@ -92,9 +123,7 @@ class KnowledgeGraph:
         self.audit_log: List[Dict[str, Any]] = []
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    # --------------------------------------------------------------------------
-    # Transaction and Concurrency
-    # --------------------------------------------------------------------------
+    # ---------------- Transaction and Concurrency ----------------
     @contextmanager
     def transaction(self):
         self.logger.debug("Acquiring transaction lock")
@@ -109,13 +138,9 @@ class KnowledgeGraph:
             self._lock.release()
             self.logger.debug("Transaction lock released")
 
-    # --------------------------------------------------------------------------
-    # Event Hooks and Observability
-    # --------------------------------------------------------------------------
+    # ---------------- Event Hooks and Audit Logging ----------------
     def register_hook(self, event: str, callback: Callable[[str, Dict[str, Any]], None]):
-        if event not in self._hooks:
-            self._hooks[event] = []
-        self._hooks[event].append(callback)
+        self._hooks.setdefault(event, []).append(callback)
         self.logger.debug(f"Hook registered for event '{event}'")
 
     def _trigger_hook(self, event: str, data: Dict[str, Any]):
@@ -131,16 +156,14 @@ class KnowledgeGraph:
         self.audit_log.append(entry)
         self.logger.debug(f"Audit: {entry}")
 
-    # --------------------------------------------------------------------------
-    # Node Operations with Automatic Versioning and Timestamps
-    # --------------------------------------------------------------------------
+    # ---------------- Node Operations ----------------
     def add_node(self, node: KGNode):
         with self._lock:
             now = datetime.datetime.now().isoformat()
             if not node.created_at:
                 node.created_at = now
             node.updated_at = now
-
+            # No need to set meta_props manually: KGNode.__init__ does it.
             if node.uid in self._graph:
                 self.logger.warning(f"Node '{node.uid}' already exists. Overwriting.")
             self._graph.add_node(node.uid, **node.model_dump())
@@ -154,6 +177,22 @@ class KnowledgeGraph:
             })
             self._trigger_hook("node_added", node.model_dump())
             self._record_audit("node_added", {"node_id": node.uid})
+
+    def get_node(self, node_id: str) -> Optional[KGNode]:
+        with self._lock:
+            if node_id in self._graph:
+                data = self._graph.nodes[node_id]
+                meta = data.get("meta_props", {})
+                class_name = meta.get(CLASS_NAME_KEY)
+                node_cls = KGNode  # default class
+                if class_name:
+                    node_cls = load_class_from_name(class_name, KGNode)
+                try:
+                    return node_cls(**data)
+                except Exception as e:
+                    self.logger.error(f"Failed to instantiate node '{node_id}' using {node_cls}: {e}")
+                    return None
+            return None
 
     def update_node(self, node_id: str, properties: Dict[str, Any]):
         with self._lock:
@@ -174,13 +213,6 @@ class KnowledgeGraph:
                 "message": "Updated node"
             })
 
-    def get_node(self, node_id: str) -> Optional[KGNode]:
-        with self._lock:
-            if node_id in self._graph:
-                data = self._graph.nodes[node_id]
-                return KGNode(**data)
-            return None
-
     def remove_node(self, node_id: str):
         with self._lock:
             if node_id in self._graph:
@@ -191,9 +223,7 @@ class KnowledgeGraph:
             else:
                 self.logger.warning(f"Attempted to remove non-existent node: {node_id}")
 
-    # --------------------------------------------------------------------------
-    # Edge Operations with Automatic Versioning and Timestamps
-    # --------------------------------------------------------------------------
+    # ---------------- Edge Operations ----------------
     def add_edge(self, edge: KGEdge):
         with self._lock:
             if not self._graph.has_node(edge.source_uid) or not self._graph.has_node(edge.target_uid):
@@ -203,6 +233,7 @@ class KnowledgeGraph:
             if not edge.created_at:
                 edge.created_at = now
             edge.updated_at = now
+            # KGEdge.__init__ automatically populates meta_props with the class name.
             self._graph.add_edge(edge.source_uid, edge.target_uid, **edge.model_dump())
             self.logger.debug(f"Edge added: {edge.model_dump()}")
             self._trigger_hook("edge_added", edge.model_dump())
@@ -214,6 +245,22 @@ class KnowledgeGraph:
                 "timestamp": now,
                 "message": "Created edge"
             })
+
+    def get_edge(self, source: str, target: str) -> Optional[KGEdge]:
+        with self._lock:
+            if self._graph.has_edge(source, target):
+                data = self._graph.edges[source, target]
+                meta = data.get("meta_props", {})
+                class_name = meta.get(CLASS_NAME_KEY)
+                edge_cls = KGEdge  # default class
+                if class_name:
+                    edge_cls = load_class_from_name(class_name, KGEdge)
+                try:
+                    return edge_cls(**data)
+                except Exception as e:
+                    self.logger.error(f"Failed to instantiate edge '{source}->{target}' using {edge_cls}: {e}")
+                    return None
+            return None
 
     def update_edge(self, source: str, target: str, properties: Dict[str, Any]):
         with self._lock:
@@ -235,13 +282,6 @@ class KnowledgeGraph:
                 "message": "Updated edge"
             })
 
-    def get_edge(self, source: str, target: str) -> Optional[KGEdge]:
-        with self._lock:
-            if self._graph.has_edge(source, target):
-                data = self._graph.edges[source, target]
-                return KGEdge(source=source, target=target, **data)
-            return None
-
     def remove_edge(self, source: str, target: str):
         with self._lock:
             if self._graph.has_edge(source, target):
@@ -252,17 +292,23 @@ class KnowledgeGraph:
             else:
                 self.logger.warning(f"Attempted to remove non-existent edge: {source} -> {target}")
 
-    # --------------------------------------------------------------------------
-    # Query / Indexing (unchanged)
-    # --------------------------------------------------------------------------
+    # ---------------- Query / Persistence / Rollback Methods ----------------
     def query_nodes(self, filter_func: Optional[Callable[[Dict[str, Any]], bool]] = None, **properties) -> List[KGNode]:
         with self._lock:
             result = []
             for n, data in self._graph.nodes(data=True):
                 if all(data.get(k) == v for k, v in properties.items()):
                     if filter_func is None or filter_func(data):
-                        result.append(KGNode(**data))
-            self.logger.debug(f"Query nodes with properties {properties} and filter_func {filter_func}: Found {len(result)} results")
+                        try:
+                            meta = data.get("meta_props", {})
+                            class_name = meta.get(CLASS_NAME_KEY)
+                            node_cls = KGNode
+                            if class_name:
+                                node_cls = load_class_from_name(class_name, KGNode)
+                            result.append(node_cls(**data))
+                        except Exception as e:
+                            self.logger.error(f"Error restoring node '{n}': {e}")
+            self.logger.debug(f"Query nodes: Found {len(result)} results")
             return result
 
     def query_edges(self, filter_func: Optional[Callable[[Dict[str, Any]], bool]] = None, **properties) -> List[KGEdge]:
@@ -271,8 +317,16 @@ class KnowledgeGraph:
             for u, v, data in self._graph.edges(data=True):
                 if all(data.get(key) == value for key, value in properties.items()):
                     if filter_func is None or filter_func(data):
-                        result.append(KGEdge(source=u, target=v, **data))
-            self.logger.debug(f"Query edges with properties {properties} and filter_func {filter_func}: Found {len(result)} results")
+                        try:
+                            meta = data.get("meta_props", {})
+                            class_name = meta.get(CLASS_NAME_KEY)
+                            edge_cls = KGEdge
+                            if class_name:
+                                edge_cls = load_class_from_name(class_name, KGEdge)
+                            result.append(edge_cls(**data))
+                        except Exception as e:
+                            self.logger.error(f"Error restoring edge '{u}->{v}': {e}")
+            self.logger.debug(f"Query edges: Found {len(result)} results")
             return result
 
     # --------------------------------------------------------------------------
@@ -374,48 +428,3 @@ class KnowledgeGraph:
     def stats(self) -> Dict[str, int]:
         with self._lock:
             return {"nodes": self._graph.number_of_nodes(), "edges": self._graph.number_of_edges()}
-
-
-###############################################################################
-# Example Usage
-###############################################################################
-
-if __name__ == "__main__":
-    # A simple hook to log events to standard output
-    def log_event(event: str, data: Dict[str, Any]):
-        print(f"Event: {event} | Data: {data}")
-
-
-    # Initialize a KnowledgeGraph with a file-based persistence backend
-    backend = FilePersistenceBackend("kg_graph.json")
-    kg = KnowledgeGraph(persistence_backend=backend)
-
-    # Register hooks for observability
-    kg.register_hook("node_added", log_event)
-    kg.register_hook("edge_added", log_event)
-    kg.register_hook("snapshot", log_event)
-
-    # Add nodes and an edge within a transaction
-    with kg.transaction():
-        node_a = KGNode(uid="A", type="Entity", properties={"name": "Alpha"})
-        node_b = KGNode(uid="B", type="Entity", properties={"name": "Beta"})
-        kg.add_node(node_a)
-        kg.add_node(node_b)
-        edge_ab = KGEdge(source_uid="A", target_uid="B", type="Relationship", properties={"relation": "connects"})
-        kg.add_edge(edge_ab)
-
-    # Create a global snapshot
-    version = kg.snapshot(message="Initial snapshot after adding A, B and their edge")
-    print(f"Global snapshot version: {version}")
-
-    # Update a node's properties (automatically records a new version)
-    kg.update_node("A", {"status": "active"})
-
-    # Fine-grained rollback example: rollback node A to its initial version (index 0)
-    kg.rollback_node("A", 0)
-    node_a_after = kg.get_node("A")
-    print(f"Node A after rollback: {node_a_after.model_dump()}")
-
-    # Print graph statistics and audit log
-    print("Graph stats:", kg.stats())
-    print("Audit log entries:", kg.audit_log)

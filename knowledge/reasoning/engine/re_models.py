@@ -96,6 +96,7 @@ class FunctionNode(DataNode):
         else:
             return self._call(*args, **kwargs)
 
+    # TODO This is problematic. Callables cannot be serialized...
     def _get_callable(self) -> Callable:
         """
         Retrieve the callable to execute.

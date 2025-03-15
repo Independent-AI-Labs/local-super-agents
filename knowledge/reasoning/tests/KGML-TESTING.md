@@ -11,6 +11,8 @@ The KGML Testing Framework includes:
 3. **Test Logger** - Records detailed test information with filesystem persistence
 4. **Test Viewer** - Command-line tool to explore test results and analyze performance
 
+![](https://raw.githubusercontent.com/Independent-AI-Labs/local-super-agents/refs/heads/feat/web-search/res/docs/screens/kgml_explorer.png)
+
 ## Components
 
 ### KGML Executor (`kgml_executor.py`)
