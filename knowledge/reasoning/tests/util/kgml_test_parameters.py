@@ -1,9 +1,7 @@
 """
 KGML Test Parameters and Fixtures
 
-This module contains constants, configuration, and fixtures for KGML integration tests.
-
-TODO These need to be loaded from a file!
+This module contains constants, configuration, and fixtures for KGML reasoning-focused tests.
 """
 import pytest
 
@@ -13,6 +11,22 @@ import pytest
 CURRENT_MODEL = "qwen2.5-coder:14b"
 MAX_ITERATIONS = 10
 PROBLEM_DIFFICULTY_LEVELS = ["basic", "intermediate", "advanced"]
+
+# Complex prompt for testing model's ability to handle complex KGML structures
+COMPLEX_PROMPT = """
+KG►
+KGNODE► Instruction : type="DataNode", content="Create a structured analysis of transformer architecture advancements"
+KGNODE► Context : type="ContextNode", domain="AI Research", focus="Transformer Models"
+KGLINK► Instruction -> Context : relation="HIERARCHY", meta_props={"priority": "high"}
+◄
+
+IF► E► NODE Instruction "Check if the instruction requires advanced analysis" ◄
+    C► NODE AnalysisPlan "Create a multi-step analysis plan with progressive refinement" ◄
+    C► LINK Instruction -> AnalysisPlan "Create a HIERARCHY link to connect instruction to plan" ◄
+ELSE►
+    C► NODE BasicReport "Create a simple summary report" ◄
+◄
+"""
 
 
 # ------------------------------------------------------------------------------
@@ -58,7 +72,7 @@ def initial_kg_serialized():
     """
     return (
         'KG►\n'
-        'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T13:24:33.347883", message="User inquiry regarding sensor data processing"\n'
+        'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T13:24:33.347883", message="Create a research report on Transformer architecture advancements"\n'
         'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Process the current KG and propose the next reasoning step"\n'
         '◄'
     )
@@ -76,74 +90,87 @@ def problem_definitions():
     """
     return [
         {
-            "id": "simple_sensor_check",
-            "description": "Create a reasoning step to check if a sensor is active, then create an alert node if it's not.",
+            "id": "basic_research_report",
+            "description": "Create a simple research report on the evolution of transformers in NLP.",
             "initial_kg": (
                 'KG►\n'
-                'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T13:24:33.347883", message="Check if Sensor01 is active"\n'
-                'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Monitor sensor status and create alert if inactive"\n'
-                'KGNODE► Sensor01 : type="SensorNode", status="inactive", last_reading="2025-02-14T13:20:00.000000"\n'
+                'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T13:24:33.347883", message="Create a research report on the evolution of transformers in NLP"\n'
+                'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Process the request and create a structured report"\n'
                 '◄'
             ),
-            "goal_condition": lambda kg: any(node.uid.startswith("Alert") for node in kg.query_nodes()),
+            "goal_condition": lambda kg: any(
+                getattr(node, 'type', None) == "DataNode" and
+                node.uid.startswith("Report") and
+                hasattr(node, 'content') and
+                node.content is not None and
+                len(str(node.content)) > 500  # Report should have substantial content
+                for node in kg.query_nodes()
+            ),
             "difficulty": "basic"
         },
         {
-            "id": "data_processing_sequence",
-            "description": "Create a sequence of data processing steps with dependencies between them.",
+            "id": "iterative_refinement",
+            "description": "Demonstrate iterative refinement of an AI ethics analysis, with multiple stages of improvement.",
             "initial_kg": (
                 'KG►\n'
-                'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T14:15:22.123456", message="Process sensor data from multiple sources"\n'
-                'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Create a data pipeline with collection, validation, transformation and storage steps"\n'
-                'KGNODE► DataSource_1 : type="DataSourceNode", format="CSV", update_frequency="hourly"\n'
-                'KGNODE► DataSource_2 : type="DataSourceNode", format="JSON", update_frequency="realtime"\n'
+                'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T14:15:22.123456", message="Create a detailed analysis of ethical considerations in large language models"\n'
+                'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Create an initial draft, then refine it iteratively with deeper analysis"\n'
+                'KGNODE► InitialContext : type="DataNode", content="Focus on bias, transparency, privacy, and accountability in LLMs"\n'
                 '◄'
             ),
             "goal_condition": lambda kg: (
-                # Check for creation of necessary processing nodes
-                    len([n for n in kg.query_nodes() if "Collection" in n.uid]) > 0 and
-                    len([n for n in kg.query_nodes() if "Validation" in n.uid]) > 0 and
-                    len([n for n in kg.query_nodes() if "Transformation" in n.uid]) > 0 and
-                    len([n for n in kg.query_nodes() if "Storage" in n.uid]) > 0 and
-                    # Check for proper sequencing through links
-                    len(kg.query_edges()) >= 3  # At least 3 edges to connect the 4 processing steps
+                # Check for multiple revisions of the report
+                    len([n for n in kg.query_nodes() if n.uid.startswith("DraftReport")]) >= 1 and
+                    len([n for n in kg.query_nodes() if n.uid.startswith("RefinedReport")]) >= 1 and
+                    len([n for n in kg.query_nodes() if n.uid.startswith("FinalReport")]) >= 1 and
+                    # Check for links showing the refinement process
+                    len([e for e in kg.query_edges() if "HIERARCHY" in e.relation]) >= 2
             ),
             "difficulty": "intermediate"
         },
         {
-            "id": "complex_conditional_reasoning",
-            "description": "Implement a multi-condition decision tree for sensor data processing with different paths based on data quality and type.",
+            "id": "hierarchical_concept_mapping",
+            "description": "Create a hierarchical concept map of AI research domains with proper relationships and structured metadata.",
             "initial_kg": (
                 'KG►\n'
-                'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-02-14T16:45:12.789012", message="Implement conditional processing for sensor data"\n'
-                'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Create decision nodes that route data based on quality metrics and data types"\n'
-                'KGNODE► DataQuality_1 : type="QualityMetricNode", completeness="87.5", accuracy="92.3", consistency="78.9"\n'
-                'KGNODE► SensorType_1 : type="SensorTypeNode", measurement="temperature", unit="celsius", precision="0.1"\n'
-                'KGNODE► SensorType_2 : type="SensorTypeNode", measurement="humidity", unit="percent", precision="0.5"\n'
+                'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T16:45:12.789012", message="Create a hierarchical concept map of AI research domains"\n'
+                'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Identify major domains, subdisciplines, and establish proper hierarchical relationships"\n'
+                'KGNODE► RootConcept : type="DataNode", content="Artificial Intelligence Research", meta_props={"level": "root"}\n'
                 '◄'
             ),
             "goal_condition": lambda kg: (
-                # Check for decision nodes
-                    len([n for n in kg.query_nodes() if "Decision" in n.uid]) >= 2 and
-                    # Check for processing paths
-                    len([n for n in kg.query_nodes() if "ProcessPath" in n.uid]) >= 3 and
-                    # Check for conditional evaluation
-                    len([n for n in kg.query_nodes() if "Condition" in n.uid]) >= 2 and
-                    # Check for proper linking
-                    len(kg.query_edges()) >= 6  # Multiple edges needed for the decision tree
+                # Check for a minimum number of concept nodes
+                    len([n for n in kg.query_nodes() if n.uid.startswith("Concept") and hasattr(n, 'content')]) >= 6 and
+                    # Check for hierarchical links between concepts
+                    len([e for e in kg.query_edges() if "HIERARCHY" in e.relation]) >= 5 and
+                    # Check for at least one concept at each level
+                    any([n for n in kg.query_nodes() if n.uid.startswith("Concept") and
+                         n.meta_props.get("level") == "root"]) and
+                    any([n for n in kg.query_nodes() if n.uid.startswith("Concept") and
+                         n.meta_props.get("level") == "domain"]) and
+                    any([n for n in kg.query_nodes() if n.uid.startswith("Concept") and
+                         n.meta_props.get("level") == "subdomain"])
+            ),
+            "difficulty": "advanced"
+        },
+        {
+            "id": "multi_perspective_analysis",
+            "description": "Create a multi-perspective analysis of AI safety, incorporating different viewpoints and forming a synthesis.",
+            "initial_kg": (
+                'KG►\n'
+                'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T10:30:45.123456", message="Create a multi-perspective analysis of AI safety"\n'
+                'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Analyze AI safety from multiple perspectives and synthesize findings"\n'
+                'KGNODE► Perspectives : type="DataNode", content="Consider: academic researchers, industry practitioners, policy makers, and ethicists", meta_props={"min_perspectives": 4}\n'
+                '◄'
+            ),
+            "goal_condition": lambda kg: (
+                # Check for perspective nodes
+                    len([n for n in kg.query_nodes() if n.uid.startswith("Perspective")]) >= 3 and
+                    # Check for a synthesis node
+                    any([n for n in kg.query_nodes() if n.uid.startswith("Synthesis") and hasattr(n, 'content')]) and
+                    # Check for relationship links between perspectives and synthesis
+                    len([e for e in kg.query_edges() if e.target_uid.startswith("Synthesis")]) >= 3
             ),
             "difficulty": "advanced"
         }
     ]
-
-
-@pytest.fixture
-def complex_problem_definition():
-    return (
-        'KG►\n'
-        'KGNODE► Problem : type="ProblemNode", description="Need to analyze sensor data for anomalies"\n'
-        'KGNODE► Context : type="ContextNode", domain="IoT", dataSource="temperature_sensors"\n'
-        'KGLINK► Problem -> Context : type="HasContext", priority="high"\n'
-        '◄\n'
-        'C► NODE Plan "Create a plan to analyze sensor data" ◄\n'
-    )

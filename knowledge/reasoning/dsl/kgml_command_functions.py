@@ -1,9 +1,29 @@
+"""
+KGML Command Functions - Refactored implementation of KGML command execution.
+
+This module provides functions to execute KGML commands (Create, Update, Delete, Evaluate)
+with instruction parsing and sandboxed execution, using a more modular and maintainable
+approach with structured error handling.
+"""
+
 import datetime
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from knowledge.graph.kg_models import KGNode, KGEdge, KnowledgeGraph
+from knowledge.reasoning.dsl.kgml_instruction_parser import KGMLInstructionParser
+from knowledge.reasoning.dsl.execution.python_sandbox import PythonSandbox
 from knowledge.reasoning.engine.re_models import DataNode
+from integration.pipelines.pipelines.web_search_pipeline_impl.data.ws_constants import LinkRelation
+
+
+class CommandError(Exception):
+    """Exception raised for errors in command execution."""
+    
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        self.message = message
+        self.details = details or {}
+        super().__init__(message)
 
 
 class KGMLCommandFunctions:
@@ -12,31 +32,37 @@ class KGMLCommandFunctions:
     with instruction parsing and sandboxed execution.
     """
 
-    def __init__(self, kg: KnowledgeGraph, instruction_parser, sandbox):
+    def __init__(self, 
+                kg: KnowledgeGraph, 
+                instruction_parser: Optional[KGMLInstructionParser] = None, 
+                sandbox: Optional[PythonSandbox] = None):
         """
         Initialize command functions with dependencies.
-
+        
         Args:
             kg: The Knowledge Graph instance
-            instruction_parser: KGMLInstructionParser instance
-            sandbox: PythonSandbox instance
+            instruction_parser: KGMLInstructionParser instance (or None to create new)
+            sandbox: PythonSandbox instance (or None to create new)
         """
         self.kg = kg
-        self.instruction_parser = instruction_parser
-        self.sandbox = sandbox
+        self.instruction_parser = instruction_parser or KGMLInstructionParser()
+        self.sandbox = sandbox or PythonSandbox()
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def create(self, node_type: str, uid: str, instruction: str) -> Dict[str, Any]:
         """
-        Create a new node based on instruction.
-
+        Create a new node based on natural language instruction.
+        
         Args:
             node_type: The type of node to create
             uid: The unique identifier for the node
             instruction: Natural language instruction
-
+            
         Returns:
-            Dict with operation results
+            Dict with operation results including status and node_id
+            
+        Raises:
+            CommandError: If node creation fails
         """
         try:
             # Log the operation
@@ -46,7 +72,8 @@ class KGMLCommandFunctions:
             parsed = self.instruction_parser.parse_natural_language_instruction(
                 instruction,
                 entity_type="NODE",
-                command_type="C"
+                command_type="C",
+                context={"default_type": node_type}
             )
 
             # Create a new node
@@ -79,23 +106,26 @@ class KGMLCommandFunctions:
 
         except Exception as e:
             self.logger.error(f"Error creating node: {str(e)}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "node_id": uid
-            }
-
-    def update(self, node_type: str, uid: str, instruction: str) -> Dict[str, Any]:
+            raise CommandError(f"Failed to create node: {str(e)}", {
+                "node_id": uid,
+                "node_type": node_type,
+                "instruction": instruction
+            })
+            
+    def update(self, node_type: Optional[str], uid: str, instruction: str) -> Dict[str, Any]:
         """
-        Update an existing node based on instruction.
-
+        Update an existing node based on natural language instruction.
+        
         Args:
-            node_type: The type of node to update
+            node_type: The type of node to update (optional)
             uid: The unique identifier for the node
             instruction: Natural language instruction
-
+            
         Returns:
             Dict with operation results
+            
+        Raises:
+            CommandError: If node update fails
         """
         try:
             # Log the operation
@@ -104,19 +134,17 @@ class KGMLCommandFunctions:
             # Get the node
             node = self.kg.get_node(uid)
             if not node:
-                return {
-                    "status": "error",
-                    "error": f"Node with ID {uid} not found",
-                    "node_id": uid
-                }
+                raise CommandError(f"Node with ID {uid} not found", {
+                    "node_id": uid,
+                    "instruction": instruction
+                })
 
             # Ensure it's the right type if node_type is specified
             if node_type and node.type != node_type:
-                return {
-                    "status": "error",
-                    "error": f"Node with ID {uid} is of type {node.type}, not {node_type}",
-                    "node_id": uid
-                }
+                raise CommandError(
+                    f"Node with ID {uid} is of type {node.type}, not {node_type}",
+                    {"node_id": uid, "actual_type": node.type, "expected_type": node_type}
+                )
 
             # Parse the instruction
             parsed = self.instruction_parser.parse_natural_language_instruction(
@@ -147,25 +175,30 @@ class KGMLCommandFunctions:
 
             return result
 
+        except CommandError:
+            # Re-raise CommandError without wrapping
+            raise
         except Exception as e:
             self.logger.error(f"Error updating node: {str(e)}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "node_id": uid
-            }
-
-    def delete(self, node_type: str, uid: str, instruction: str) -> Dict[str, Any]:
+            raise CommandError(f"Failed to update node: {str(e)}", {
+                "node_id": uid,
+                "instruction": instruction
+            })
+            
+    def delete(self, node_type: Optional[str], uid: str, instruction: str) -> Dict[str, Any]:
         """
-        Delete a node based on instruction.
-
+        Delete a node based on natural language instruction.
+        
         Args:
-            node_type: The type of node to delete
+            node_type: The type of node to delete (optional)
             uid: The unique identifier for the node
             instruction: Natural language instruction (may contain conditions)
-
+            
         Returns:
             Dict with operation results
+            
+        Raises:
+            CommandError: If node deletion fails
         """
         try:
             # Log the operation
@@ -174,26 +207,23 @@ class KGMLCommandFunctions:
             # Get the node
             node = self.kg.get_node(uid)
             if not node:
-                return {
-                    "status": "error",
-                    "error": f"Node with ID {uid} not found",
-                    "node_id": uid
-                }
+                raise CommandError(f"Node with ID {uid} not found", {
+                    "node_id": uid,
+                    "instruction": instruction
+                })
 
             # Ensure it's the right type if node_type is specified
             if node_type and node.type != node_type:
-                return {
-                    "status": "error",
-                    "error": f"Node with ID {uid} is of type {node.type}, not {node_type}",
-                    "node_id": uid
-                }
+                raise CommandError(
+                    f"Node with ID {uid} is of type {node.type}, not {node_type}",
+                    {"node_id": uid, "actual_type": node.type, "expected_type": node_type}
+                )
 
             # Parse the instruction if needed for conditional deletion
-            # In most cases, delete operation might not need complex parsing
             should_delete = True
 
             # If instruction includes conditional logic, parse and evaluate it
-            if "if" in instruction.lower() or "when" in instruction.lower() or "only" in instruction.lower():
+            if any(keyword in instruction.lower() for keyword in ["if", "when", "only"]):
                 parsed = self.instruction_parser.parse_natural_language_instruction(
                     instruction,
                     entity_type="NODE",
@@ -225,25 +255,30 @@ class KGMLCommandFunctions:
                     "node_id": uid
                 }
 
+        except CommandError:
+            # Re-raise CommandError without wrapping
+            raise
         except Exception as e:
             self.logger.error(f"Error deleting node: {str(e)}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "node_id": uid
-            }
-
-    def evaluate(self, node_type: str, uid: str, instruction: str) -> Dict[str, Any]:
+            raise CommandError(f"Failed to delete node: {str(e)}", {
+                "node_id": uid,
+                "instruction": instruction
+            })
+            
+    def evaluate(self, node_type: Optional[str], uid: str, instruction: str) -> Dict[str, Any]:
         """
-        Evaluate a node based on instruction.
-
+        Evaluate a node based on natural language instruction.
+        
         Args:
-            node_type: The type of node to evaluate
+            node_type: The type of node to evaluate (optional)
             uid: The unique identifier for the node
             instruction: Natural language instruction
-
+            
         Returns:
             Dict with evaluation results
+            
+        Raises:
+            CommandError: If node evaluation fails
         """
         try:
             # Log the operation
@@ -252,19 +287,17 @@ class KGMLCommandFunctions:
             # Get the node
             node = self.kg.get_node(uid)
             if not node:
-                return {
-                    "status": "error",
-                    "error": f"Node with ID {uid} not found",
-                    "node_id": uid
-                }
+                raise CommandError(f"Node with ID {uid} not found", {
+                    "node_id": uid,
+                    "instruction": instruction
+                })
 
             # Ensure it's the right type if node_type is specified
             if node_type and node.type != node_type:
-                return {
-                    "status": "error",
-                    "error": f"Node with ID {uid} is of type {node.type}, not {node_type}",
-                    "node_id": uid
-                }
+                raise CommandError(
+                    f"Node with ID {uid} is of type {node.type}, not {node_type}",
+                    {"node_id": uid, "actual_type": node.type, "expected_type": node_type}
+                )
 
             # Parse the instruction
             parsed = self.instruction_parser.parse_natural_language_instruction(
@@ -301,25 +334,30 @@ class KGMLCommandFunctions:
 
             return result
 
+        except CommandError:
+            # Re-raise CommandError without wrapping
+            raise
         except Exception as e:
             self.logger.error(f"Error evaluating node: {str(e)}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "node_id": uid
-            }
-
+            raise CommandError(f"Failed to evaluate node: {str(e)}", {
+                "node_id": uid,
+                "instruction": instruction
+            })
+            
     def link(self, source_uid: str, target_uid: str, instruction: str) -> Dict[str, Any]:
         """
-        Create a link between nodes based on instruction.
-
+        Create a link between nodes based on natural language instruction.
+        
         Args:
             source_uid: Source node ID
             target_uid: Target node ID
             instruction: Natural language instruction
-
+            
         Returns:
             Dict with operation results
+            
+        Raises:
+            CommandError: If link creation fails
         """
         try:
             # Log the operation
@@ -328,21 +366,60 @@ class KGMLCommandFunctions:
             # Get the source and target nodes
             source_node = self.kg.get_node(source_uid)
             if not source_node:
-                return {
-                    "status": "error",
-                    "error": f"Source node with ID {source_uid} not found",
-                    "edge": f"{source_uid}->{target_uid}"
-                }
+                raise CommandError(f"Source node with ID {source_uid} not found", {
+                    "source_uid": source_uid,
+                    "target_uid": target_uid,
+                    "instruction": instruction
+                })
 
             target_node = self.kg.get_node(target_uid)
             if not target_node:
-                return {
-                    "status": "error",
-                    "error": f"Target node with ID {target_uid} not found",
-                    "edge": f"{source_uid}->{target_uid}"
-                }
+                raise CommandError(f"Target node with ID {target_uid} not found", {
+                    "source_uid": source_uid,
+                    "target_uid": target_uid,
+                    "instruction": instruction
+                })
 
-            # Parse the instruction
+            # Check if the instruction is a direct link relation type (no parsing needed)
+            normalized_instruction = instruction.strip()
+            if normalized_instruction.startswith('"') and normalized_instruction.endswith('"'):
+                normalized_instruction = normalized_instruction[1:-1].strip()
+            if normalized_instruction.startswith("'") and normalized_instruction.endswith("'"):
+                normalized_instruction = normalized_instruction[1:-1].strip()
+                
+            # Check if the normalized instruction matches a LinkRelation enum name
+            relation_type = None
+            try:
+                for relation in LinkRelation:
+                    if normalized_instruction == relation.name or normalized_instruction == relation.value:
+                        relation_type = relation.name
+                        break
+                        
+                if relation_type:
+                    # Create a new edge with the explicit relation type
+                    now = datetime.datetime.now().isoformat()
+                    edge = KGEdge(
+                        source_uid=source_uid,
+                        target_uid=target_uid,
+                        relation=relation_type,
+                        meta_props={},
+                        created_at=now,
+                        updated_at=now
+                    )
+                    
+                    # Add the edge to the knowledge graph
+                    self.kg.add_edge(edge)
+                    
+                    return {
+                        "status": "created",
+                        "edge": f"{source_uid}->{target_uid}",
+                        "relation": relation_type
+                    }
+            except (AttributeError, ValueError) as e:
+                self.logger.debug(f"Instruction '{normalized_instruction}' is not a direct LinkRelation value: {e}")
+                # Continue with normal parsing if it's not a direct relation type
+
+            # Parse the instruction using the regular flow
             parsed = self.instruction_parser.parse_natural_language_instruction(
                 instruction,
                 entity_type="LINK",
@@ -378,10 +455,13 @@ class KGMLCommandFunctions:
 
             return result
 
+        except CommandError:
+            # Re-raise CommandError without wrapping
+            raise
         except Exception as e:
             self.logger.error(f"Error creating link: {str(e)}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "edge": f"{source_uid}->{target_uid}"
-            }
+            raise CommandError(f"Failed to create link: {str(e)}", {
+                "source_uid": source_uid,
+                "target_uid": target_uid,
+                "instruction": instruction
+            })

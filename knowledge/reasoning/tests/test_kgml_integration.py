@@ -1,14 +1,15 @@
 """
-Integration Tests for KGML execution and reasoning.
+Integration Tests for KGML Reasoning Capabilities
 
-These tests verify the integration between the KGML parser, executor, and LLM-based reasoning.
+These tests focus on evaluating the LLM's reasoning capabilities through KGML,
+emphasizing research, analysis, and iterative refinement rather than sensor data processing.
 """
 import logging
 import time
 from pathlib import Path
 
 from integration.data.config import KGML_SYSTEM_PROMPT
-from knowledge.reasoning.dsl.kgml_executor import KGMLExecutor
+from knowledge.reasoning.dsl.execution.kgml_executor import KGMLExecutor
 from knowledge.reasoning.tests.util.kgml_test_helpers import (
     validate_kgml_with_error,
     format_reasoning_summary
@@ -19,7 +20,7 @@ from knowledge.reasoning.tests.util.kgml_test_reasoning_evaluator import Reasoni
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("KGMLIntegrationTests")
+logger = logging.getLogger("KGMLReasoningTests")
 
 
 # ------------------------------------------------------------------------------
@@ -31,21 +32,21 @@ def test_logger():
     """
     Provides a test logger for the entire test session.
     """
-    test_logger = KGMLTestLogger(base_dir="kgml_test_logs", model_name=CURRENT_MODEL)
+    test_logger = KGMLTestLogger(base_dir="kgml_reasoning_logs", model_name=CURRENT_MODEL)
     yield test_logger
     # Finalize the test run when the fixture is torn down
     test_logger.end_run()
 
 
 # ------------------------------------------------------------------------------
-# Integration Tests
+# Core Reasoning Tests
 # ------------------------------------------------------------------------------
 
-def test_basic_kg_init_and_serialization(knowledge_graph, initial_kg_serialized, test_logger):
+def test_kg_initialization(knowledge_graph, initial_kg_serialized, test_logger):
     """
-    Test that we can initialize a KG from a serialized string and re-serialize it.
+    Test that we can initialize a Knowledge Graph from a serialized string and re-serialize it.
     """
-    test_logger.start_test("basic_kg_init_and_serialization", {"description": "Basic KG initialization and serialization test"})
+    test_logger.start_test("kg_initialization", {"description": "Basic KG initialization test"})
 
     evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
     kg = evaluator.initialize_kg_from_serialized(initial_kg_serialized)
@@ -62,21 +63,23 @@ def test_basic_kg_init_and_serialization(knowledge_graph, initial_kg_serialized,
     assert serialized.startswith("KG►")
     assert serialized.endswith("◄")
 
-    test_logger.end_test("basic_kg_init_and_serialization", goal_reached=True, iterations_to_goal=1)
+    test_logger.end_test("kg_initialization", goal_reached=True, iterations_to_goal=1)
 
 
-def test_single_kgml_execution(knowledge_graph, test_logger):
+def test_simple_kgml_execution(knowledge_graph, test_logger):
     """
-    Test that we can execute a single KGML command sequence directly.
+    Test direct execution of KGML commands to create and evaluate research nodes.
     """
-    test_logger.start_test("single_kgml_execution", {"description": "Direct KGML execution test"})
+    test_logger.start_test("simple_kgml_execution", {"description": "Direct KGML execution test"})
 
     executor = KGMLExecutor(knowledge_graph)
 
-    # Simple KGML program with create and evaluate commands
+    # KGML program focused on creating a research report
     kgml_code = (
-        'C► NODE TestNode "Create a test node for validation" ◄\n'
-        'E► NODE TestNode "Evaluate if test node is successful" ◄'
+        'C► NODE ResearchTopic "Create a DataNode with content about transformer architecture" ◄\n'
+        'C► NODE AnalysisNode "Create an analysis of the transformer architecture topic" ◄\n'
+        'C► LINK AnalysisNode -> ResearchTopic "Create a HIERARCHY link showing analysis depends on topic" ◄\n'
+        'E► NODE AnalysisNode "Evaluate if the analysis is comprehensive" ◄'
     )
 
     start_time = time.time()
@@ -87,11 +90,11 @@ def test_single_kgml_execution(knowledge_graph, test_logger):
 
     # Log the execution
     test_logger.log_request_response(
-        test_name="single_kgml_execution",
+        test_name="simple_kgml_execution",
         iteration=1,
         request=kgml_code,
-        response="DIRECT REQUEST EXECUTION",
-        response_time=execution_time,  # Use actual execution time
+        response="DIRECT EXECUTION",
+        response_time=execution_time,
         is_valid=True,
         has_syntax_errors=False,
         execution_result={
@@ -99,24 +102,25 @@ def test_single_kgml_execution(knowledge_graph, test_logger):
             "execution_log": context.execution_log,
             "variables": context.variables,
             "results": context.results,
-            "execution_time": execution_time  # Include execution time in result
+            "execution_time": execution_time
         }
     )
 
     # Verify execution
-    assert len(context.execution_log) == 2  # Two commands executed
-    assert knowledge_graph.get_node("TestNode") is not None  # Node was created
-    assert "eval_TestNode" in context.variables  # Evaluation result was stored
-    assert context.results["TestNode"] is not None  # Result stored in results dict
+    assert len(context.execution_log) == 4  # Four commands executed
+    assert knowledge_graph.get_node("ResearchTopic") is not None
+    assert knowledge_graph.get_node("AnalysisNode") is not None
+    assert "eval_AnalysisNode" in context.variables
+    assert context.results["AnalysisNode"] is not None
 
-    test_logger.end_test("single_kgml_execution", goal_reached=True, iterations_to_goal=1)
+    test_logger.end_test("simple_kgml_execution", goal_reached=True, iterations_to_goal=1)
 
 
 def test_model_kgml_generation(initial_kg_serialized, reasoning_stats, test_logger):
     """
-    Test that the model can generate valid KGML in response to a KG state.
+    Test the model's ability to generate valid KGML in response to a research request.
     """
-    test_logger.start_test("model_kgml_generation", {"description": "Testing model's ability to generate valid KGML"})
+    test_logger.start_test("model_kgml_generation", {"description": "Testing model's ability to generate valid KGML for research tasks"})
 
     evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
     evaluator.initialize_kg_from_serialized(initial_kg_serialized)
@@ -141,6 +145,18 @@ def test_model_kgml_generation(initial_kg_serialized, reasoning_stats, test_logg
         assert result["success"], "KGML execution failed"
         assert len(result["execution_log"]) > 0, "No commands were executed"
 
+        # Check if any DataNode was created
+        has_data_node = any(
+            entry["command_type"] == "C" and
+            "entity_type" in entry["details"] and
+            entry["details"]["entity_type"] == "NODE" and
+            "instruction" in entry["details"] and
+            "DataNode" in entry["details"]["instruction"]
+            for entry in result["execution_log"]
+        )
+
+        assert has_data_node, "Model should create at least one DataNode for research"
+
         test_logger.end_test("model_kgml_generation", goal_reached=True, iterations_to_goal=1)
     else:
         reasoning_stats["invalid_responses"] += 1
@@ -152,12 +168,12 @@ def test_model_kgml_generation(initial_kg_serialized, reasoning_stats, test_logg
     assert is_valid, f"Model response was not valid KGML: {error_message}"
 
 
-def test_multi_step_reasoning(initial_kg_serialized, reasoning_stats, test_logger):
+def test_iterative_reasoning(initial_kg_serialized, reasoning_stats, test_logger):
     """
-    Test the model's ability to engage in multi-step reasoning through
-    iterative KGML generation and execution.
+    Test the model's ability to engage in iterative reasoning to progressively
+    refine a research analysis through multiple steps.
     """
-    test_logger.start_test("multi_step_reasoning", {"description": "Testing model's multi-step reasoning capability"})
+    test_logger.start_test("iterative_reasoning", {"description": "Testing model's ability to iteratively refine research analysis"})
 
     evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
     evaluator.initialize_kg_from_serialized(initial_kg_serialized)
@@ -173,18 +189,29 @@ def test_multi_step_reasoning(initial_kg_serialized, reasoning_stats, test_logge
         reasoning_stats["total_prompts"] += 1
 
         # Get model response
-        response = evaluator.prompt_model_with_kg(current_kg, "multi_step_reasoning", i + 1)
+        response = evaluator.prompt_model_with_kg(current_kg, "iterative_reasoning", i + 1)
         print(f"\nModel Response {i + 1}:", response)
 
         # Validate and execute
         is_valid, error_message = validate_kgml_with_error(response)
         if is_valid:
             reasoning_stats["valid_responses"] += 1
-            result = evaluator.execute_kgml(response, "multi_step_reasoning", i + 1)
+            result = evaluator.execute_kgml(response, "iterative_reasoning", i + 1)
             reasoning_stats["execution_results"].append(result)
 
             # Update the KG for the next iteration
             current_kg = evaluator.serialize_kg()
+
+            # Check if the model is refining previous work
+            has_links = any(
+                entry["command_type"] == "C" and
+                "entity_type" in entry["details"] and
+                entry["details"]["entity_type"] == "LINK"
+                for entry in result["execution_log"]
+            )
+
+            if i > 0:  # From second iteration onward, expect refinement
+                assert has_links, f"In iteration {i + 1}, model should create links to previous work"
         else:
             reasoning_stats["invalid_responses"] += 1
             reasoning_stats["errors"].append(f"Iteration {i + 1}: Invalid KGML: {error_message}")
@@ -192,22 +219,23 @@ def test_multi_step_reasoning(initial_kg_serialized, reasoning_stats, test_logge
 
     # Final checks
     kg_nodes = evaluator.kg.query_nodes()
-    kg_growth = len(kg_nodes) > 2
+    kg_edges = evaluator.kg.query_edges()
+
+    # There should be multiple nodes and edges showing iterative refinement
+    assert len(kg_nodes) >= 4, "Expected KG to have multiple nodes showing iterative work"
+    assert len(kg_edges) >= 2, "Expected KG to have links showing relationships between iterations"
 
     test_logger.end_test(
-        "multi_step_reasoning",
-        goal_reached=kg_growth and reasoning_stats["valid_responses"] >= 1,
+        "iterative_reasoning",
+        goal_reached=reasoning_stats["valid_responses"] >= 2,  # At least 2 valid iterations
         iterations_to_goal=iterations
     )
 
-    assert reasoning_stats["valid_responses"] >= 1, "Expected at least one valid response"
-    assert len(kg_nodes) > 2, "Expected KG to grow during reasoning"
-
 
 @pytest.mark.parametrize("difficulty", PROBLEM_DIFFICULTY_LEVELS)
-def test_problem_solving_by_difficulty(problem_definitions, reasoning_stats, test_logger, difficulty):
+def test_reasoning_by_difficulty(problem_definitions, reasoning_stats, test_logger, difficulty):
     """
-    Test the model's ability to solve problems of different difficulty levels.
+    Test the model's ability to solve reasoning problems of different difficulty levels.
     """
     problems = [p for p in problem_definitions if p["difficulty"] == difficulty]
     if not problems:
@@ -216,7 +244,7 @@ def test_problem_solving_by_difficulty(problem_definitions, reasoning_stats, tes
     evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
 
     for problem in problems:
-        test_name = f"problem_solving_{difficulty}_{problem['id']}"
+        test_name = f"reasoning_{difficulty}_{problem['id']}"
         print(f"\n=== Testing Problem: {problem['id']} ({difficulty}) ===")
         print(f"Description: {problem['description']}")
 
@@ -251,11 +279,109 @@ def test_problem_solving_by_difficulty(problem_definitions, reasoning_stats, tes
     print(f"\nSummary for {difficulty} problems: {success_count}/{total_count} solved")
 
 
+def test_conditional_reasoning(reasoning_stats, test_logger):
+    """
+    Test the model's ability to use conditional reasoning (IF/ELSE structures)
+    to make decisions about research approaches.
+    """
+    test_logger.start_test("conditional_reasoning", {"description": "Testing model's ability to use conditional reasoning structures"})
+
+    # Initial KG with a condition to evaluate
+    initial_kg = (
+        'KG►\n'
+        'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T13:24:33.347883", message="Analyze the given topic based on complexity"\n'
+        'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Determine complexity and apply appropriate analysis method"\n'
+        'KGNODE► Topic : type="DataNode", content="Quantum computing applications in cryptography", meta_props={"complexity": "high"}\n'
+        '◄'
+    )
+
+    evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
+    evaluator.initialize_kg_from_serialized(initial_kg)
+
+    reasoning_stats["total_prompts"] += 1
+    response = evaluator.prompt_model_with_kg(initial_kg, "conditional_reasoning", 1)
+    print("\n=== Conditional Reasoning Response ===\n", response)
+
+    is_valid, error_message = validate_kgml_with_error(response)
+    if is_valid:
+        reasoning_stats["valid_responses"] += 1
+        result = evaluator.execute_kgml(response, "conditional_reasoning", 1)
+        reasoning_stats["execution_results"].append(result)
+
+        # Check for conditional structures in the response
+        has_conditional = "IF►" in response
+        assert has_conditional, "Response should include conditional reasoning (IF structure)"
+
+        # Execute and check result
+        # The condition should evaluate topic complexity and branch accordingly
+        final_kg = evaluator.serialize_kg()
+
+        # For high complexity topic, expect detailed analysis
+        has_detailed_analysis = any(
+            node.uid.startswith("DetailedAnalysis") or
+            node.uid.startswith("ComplexAnalysis") or
+            node.uid.startswith("AdvancedAnalysis")
+            for node in evaluator.kg.query_nodes()
+        )
+
+        assert has_detailed_analysis, "High complexity topic should trigger detailed analysis path"
+
+        test_logger.end_test("conditional_reasoning", goal_reached=True, iterations_to_goal=1)
+    else:
+        reasoning_stats["invalid_responses"] += 1
+        reasoning_stats["errors"].append(f"Conditional reasoning test: {error_message}")
+        test_logger.end_test("conditional_reasoning", goal_reached=False)
+
+    assert is_valid, f"Conditional reasoning should yield valid KGML: {error_message}"
+
+
+def test_complex_structure_handling(reasoning_stats, test_logger):
+    """
+    Test the model's ability to handle complex KGML structures with nested
+    control flow and multiple linked components.
+    """
+    test_logger.start_test("complex_structure_handling", {"description": "Testing model with complex KGML structures"})
+
+    evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
+
+    reasoning_stats["total_prompts"] += 1
+    response = evaluator.prompt_model_with_kg(COMPLEX_PROMPT, "complex_structure_handling", 1)
+    print("\n=== Complex Structure Response ===\n", response)
+
+    is_valid, error_message = validate_kgml_with_error(response)
+    if is_valid:
+        reasoning_stats["valid_responses"] += 1
+        result = evaluator.execute_kgml(response, "complex_structure_handling", 1)
+        reasoning_stats["execution_results"].append(result)
+
+        # Check for advanced structure in response
+        has_control_flow = "IF►" in response or "LOOP►" in response
+        has_multiple_nodes = len([entry for entry in result["execution_log"]
+                                  if entry["command_type"] == "C" and
+                                  entry["details"]["entity_type"] == "NODE"]) >= 3
+
+        has_multiple_links = len([entry for entry in result["execution_log"]
+                                  if entry["command_type"] == "C" and
+                                  entry["details"]["entity_type"] == "LINK"]) >= 2
+
+        assert has_control_flow, "Response should use control flow structures"
+        assert has_multiple_nodes, "Response should create multiple nodes"
+        assert has_multiple_links, "Response should create multiple links between nodes"
+
+        test_logger.end_test("complex_structure_handling", goal_reached=True, iterations_to_goal=1)
+    else:
+        reasoning_stats["invalid_responses"] += 1
+        reasoning_stats["errors"].append(f"Complex structure test: {error_message}")
+        test_logger.end_test("complex_structure_handling", goal_reached=False)
+
+    assert is_valid, f"Complex KGML structure should yield valid KGML response: {error_message}"
+
+
 def test_comprehensive_reasoning_evaluation(problem_definitions, reasoning_stats, test_logger):
     """
-    Comprehensive test that evaluates all problems and reports detailed statistics.
+    Comprehensive test that evaluates all reasoning problems and reports detailed statistics.
     """
-    test_logger.start_test("comprehensive_evaluation", {"description": "Comprehensive evaluation of all problems"})
+    test_logger.start_test("comprehensive_evaluation", {"description": "Comprehensive evaluation of all reasoning problems"})
 
     evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
     all_results = []
@@ -317,31 +443,219 @@ def test_comprehensive_reasoning_evaluation(problem_definitions, reasoning_stats
     assert success_rate >= 0.5, "Overall success rate below 50%"
 
 
-def test_complex_kgml_structures(reasoning_stats, test_logger):
+def test_datanode_content_creation(reasoning_stats, test_logger):
     """
-    Test the model's ability to handle complex KGML structures.
+    Test the model's ability to create rich, detailed content in DataNodes.
     """
-    test_logger.start_test("complex_kgml_structures", {"description": "Testing model with complex KGML structures"})
+    test_logger.start_test("datanode_content_creation", {"description": "Testing model's ability to create detailed DataNode content"})
+
+    # Initial KG with a research request
+    initial_kg = (
+        'KG►\n'
+        'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T13:24:33.347883", message="Create a detailed summary of reinforcement learning algorithms"\n'
+        'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Generate comprehensive DataNode content on RL algorithms"\n'
+        '◄'
+    )
 
     evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
+    evaluator.initialize_kg_from_serialized(initial_kg)
 
     reasoning_stats["total_prompts"] += 1
-    response = evaluator.prompt_model_with_kg(COMPLEX_PROMPT, "complex_kgml_structures", 1)
-    print("\n=== Complex Structure Response ===\n", response)
+    response = evaluator.prompt_model_with_kg(initial_kg, "datanode_content_creation", 1)
+    print("\n=== DataNode Content Creation Response ===\n", response)
 
     is_valid, error_message = validate_kgml_with_error(response)
     if is_valid:
         reasoning_stats["valid_responses"] += 1
-
-        # Execute the KGML
-        result = evaluator.execute_kgml(response, "complex_kgml_structures", 1)
+        result = evaluator.execute_kgml(response, "datanode_content_creation", 1)
         reasoning_stats["execution_results"].append(result)
 
-        test_logger.end_test("complex_kgml_structures", goal_reached=True, iterations_to_goal=1)
+        # Check for DataNodes with substantial content
+        data_nodes = [node for node in evaluator.kg.query_nodes()
+                      if hasattr(node, 'content') and
+                      node.content is not None and
+                      isinstance(node.content, str)]
+
+        has_substantial_content = any(
+            len(str(node.content)) > 1000  # At least 1000 characters
+            for node in data_nodes
+        )
+
+        has_structured_content = any(
+            ("## " in str(node.content) or "**" in str(node.content))  # Has markdown/structure
+            for node in data_nodes
+        )
+
+        assert len(data_nodes) > 0, "Should create at least one DataNode with content"
+        assert has_substantial_content, "At least one DataNode should have substantial content"
+        assert has_structured_content, "Content should be structured with sections or formatting"
+
+        # Find the largest content node for the report
+        largest_node = max(data_nodes, key=lambda n: len(str(n.content)), default=None)
+        if largest_node:
+            content_sample = str(largest_node.content)[:500] + "..." if len(str(largest_node.content)) > 500 else str(largest_node.content)
+            print(f"\nDataNode Content Sample from {largest_node.uid}:\n{content_sample}")
+
+            # Save the content to a file in the test logger directory
+            content_file = Path(test_logger.run_dir) / f"datanode_content_{largest_node.uid}.txt"
+            with open(content_file, "w", encoding="utf-8") as f:
+                f.write(str(largest_node.content))
+
+        test_logger.end_test("datanode_content_creation", goal_reached=True, iterations_to_goal=1)
     else:
         reasoning_stats["invalid_responses"] += 1
-        reasoning_stats["errors"].append(f"Complex structure test: {error_message}")
+        reasoning_stats["errors"].append(f"DataNode content creation test: {error_message}")
+        test_logger.end_test("datanode_content_creation", goal_reached=False)
 
-        test_logger.end_test("complex_kgml_structures", goal_reached=False)
+    assert is_valid, f"DataNode content creation should yield valid KGML: {error_message}"
 
-    assert is_valid, f"Complex KGML structure should yield valid KGML response: {error_message}"
+
+def test_function_node_evaluation(reasoning_stats, test_logger):
+    """
+    Test the model's ability to create and evaluate FunctionNodes to perform reasoning tasks.
+    """
+    test_logger.start_test("function_node_evaluation", {"description": "Testing model's ability to use FunctionNodes for reasoning"})
+
+    # Initial KG with a request that requires functional evaluation
+    initial_kg = (
+        'KG►\n'
+        'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T15:10:23.347883", message="Analyze and classify ML research papers by approach"\n'
+        'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Create functions to classify and analyze content by approach"\n'
+        'KGNODE► ResearchPapers : type="DataNode", content="1. Deep Reinforcement Learning for Robotic Manipulation\\n2. Attention Is All You Need\\n3. BERT: Pre-training of Deep Bidirectional Transformers\\n4. Proximal Policy Optimization Algorithms\\n5. MuZero: Mastering Go, chess, shogi and Atari without rules"\n'
+        '◄'
+    )
+
+    evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
+    evaluator.initialize_kg_from_serialized(initial_kg)
+
+    reasoning_stats["total_prompts"] += 1
+    response = evaluator.prompt_model_with_kg(initial_kg, "function_node_evaluation", 1)
+    print("\n=== FunctionNode Evaluation Response ===\n", response)
+
+    is_valid, error_message = validate_kgml_with_error(response)
+    if is_valid:
+        reasoning_stats["valid_responses"] += 1
+        result = evaluator.execute_kgml(response, "function_node_evaluation", 1)
+        reasoning_stats["execution_results"].append(result)
+
+        # Check for FunctionNodes in the KG
+        function_nodes_created = any(
+            "FunctionNode" in entry["details"]["instruction"]
+            for entry in result["execution_log"]
+            if entry["command_type"] == "C" and "details" in entry
+            and "instruction" in entry["details"]
+        )
+
+        # Check for evaluation of nodes
+        evaluations = [
+            entry for entry in result["execution_log"]
+            if entry["command_type"] == "E"
+        ]
+
+        # Check for output based on function evaluation
+        result_nodes = [
+            node for node in evaluator.kg.query_nodes()
+            if node.uid.startswith("Result") or node.uid.startswith("Classification")
+        ]
+
+        assert function_nodes_created, "Model should create FunctionNodes for classification"
+        assert len(evaluations) > 0, "Model should evaluate nodes"
+        assert len(result_nodes) > 0, "Model should create result nodes from function evaluation"
+
+        test_logger.end_test("function_node_evaluation", goal_reached=True, iterations_to_goal=1)
+    else:
+        reasoning_stats["invalid_responses"] += 1
+        reasoning_stats["errors"].append(f"FunctionNode evaluation test: {error_message}")
+        test_logger.end_test("function_node_evaluation", goal_reached=False)
+
+    assert is_valid, f"FunctionNode evaluation should yield valid KGML: {error_message}"
+
+
+def test_outcome_based_reasoning(reasoning_stats, test_logger):
+    """
+    Test the model's ability to use OutcomeNodes to assess progress and guide
+    further reasoning based on evaluation results.
+    """
+    test_logger.start_test("outcome_based_reasoning", {"description": "Testing model's ability to perform multi-stage reasoning with outcome assessment"})
+
+    # Initial KG with a request that requires multiple stages and evaluation
+    initial_kg = (
+        'KG►\n'
+        'KGNODE► EventMeta_1 : type="EventMetaNode", timestamp="2025-03-22T16:45:23.125678", message="Develop a multi-stage analysis of AGI safety frameworks"\n'
+        'KGNODE► ActionMeta_1 : type="ActionMetaNode", reference="EventMeta_1", instruction="Create a multi-stage analysis with outcome assessment after each stage"\n'
+        'KGNODE► EvaluationCriteria : type="DataNode", content="Each stage should be evaluated on: 1) Comprehensiveness, 2) Clarity, 3) Evidence-based reasoning, 4) Balanced perspective", meta_props={"min_score": 0.7}\n'
+        '◄'
+    )
+
+    evaluator = ReasoningEvaluator(CURRENT_MODEL, KGML_SYSTEM_PROMPT, test_logger)
+    evaluator.initialize_kg_from_serialized(initial_kg)
+
+    # This test will run in multiple iterations to observe outcome-based course correction
+    current_kg = initial_kg
+    iterations = 3
+    outcome_nodes_count = 0
+
+    for i in range(iterations):
+        print(f"\n=== Outcome Reasoning Iteration {i + 1} ===")
+
+        reasoning_stats["total_prompts"] += 1
+        response = evaluator.prompt_model_with_kg(current_kg, "outcome_based_reasoning", i + 1)
+        print(f"\nOutcome Reasoning Response {i + 1}:", response)
+
+        is_valid, error_message = validate_kgml_with_error(response)
+        if is_valid:
+            reasoning_stats["valid_responses"] += 1
+            result = evaluator.execute_kgml(response, "outcome_based_reasoning", i + 1)
+            reasoning_stats["execution_results"].append(result)
+
+            # Update KG for next iteration
+            current_kg = evaluator.serialize_kg()
+
+            # Count OutcomeNodes
+            new_outcome_nodes = [
+                node for node in evaluator.kg.query_nodes()
+                if node.uid.startswith("Outcome") or "outcome" in node.uid.lower()
+            ]
+            outcome_nodes_count = len(new_outcome_nodes)
+
+            # For iterations after the first, check if the model is responding to previous outcomes
+            if i > 0:
+                references_outcomes = any(
+                    "outcome" in entry["details"]["instruction"].lower() or
+                    "evaluation" in entry["details"]["instruction"].lower()
+                    for entry in result["execution_log"]
+                    if entry["command_type"] in ["E", "C"] and "details" in entry
+                    and "instruction" in entry["details"]
+                )
+                assert references_outcomes, f"In iteration {i + 1}, model should reference previous outcomes"
+        else:
+            reasoning_stats["invalid_responses"] += 1
+            reasoning_stats["errors"].append(f"Outcome reasoning iteration {i + 1}: {error_message}")
+            break
+
+    # Final assessment
+    has_refinement_based_on_outcomes = any(
+        node.uid.startswith("Refined") or
+        node.uid.startswith("Improved") or
+        "revision" in node.uid.lower() or
+        "version" in node.uid.lower()
+        for node in evaluator.kg.query_nodes()
+    )
+
+    assert outcome_nodes_count > 0, "Should create at least one outcome node"
+    assert has_refinement_based_on_outcomes, "Should show refinement based on outcome assessment"
+
+    # Check if outcomes influenced the reasoning process
+    outcome_links = [
+        edge for edge in evaluator.kg.query_edges()
+        if any(term in edge.source_uid.lower() for term in ["outcome", "evaluation", "assessment"]) or
+           any(term in edge.target_uid.lower() for term in ["outcome", "evaluation", "assessment"])
+    ]
+
+    assert len(outcome_links) > 0, "Outcomes should be linked to other nodes in the reasoning process"
+
+    test_logger.end_test(
+        "outcome_based_reasoning",
+        goal_reached=is_valid and outcome_nodes_count > 0 and has_refinement_based_on_outcomes,
+        iterations_to_goal=iterations
+    )

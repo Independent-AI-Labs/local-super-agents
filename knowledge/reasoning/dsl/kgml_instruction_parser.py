@@ -1,277 +1,337 @@
+"""
+KGML Instruction Parser - Refactored to use the code generator interface.
+
+This module parses natural language instructions in KGML commands and
+converts them to executable Python code using a code generator.
+"""
+
 import ast
 import logging
 import re
 from typing import Dict, Any, Optional
 
-from integration.net.ollama.ollama_api import prompt_model
+from knowledge.reasoning.dsl.kgml_code_generator_interface import (
+    CodeGenerator, LLMCodeGenerator, CodeGenerationError
+)
+
+
+class KGMLParseError(Exception):
+    """Exception raised for errors in parsing KGML instructions."""
+    
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        self.message = message
+        self.details = details or {}
+        super().__init__(message)
 
 
 class KGMLInstructionParser:
     """
-    Parser that converts natural language instructions within KGML commands
-    to secure Python code for execution.
-
-    This is the bridge between natural language in KGML commands and
-    executable Python code that manipulates knowledge graph objects.
+    Parser for natural language instructions in KGML commands.
+    
+    Converts natural language instructions to secure Python code for execution,
+    using a pluggable code generator.
     """
 
-    def __init__(self):
-        """Initialize the parser with security settings."""
+    def __init__(self, code_generator: Optional[CodeGenerator] = None, model_id: str = "qwen2.5-coder:14b"):
+        """
+        Initialize the parser with a code generator.
+        
+        Args:
+            code_generator: The code generator to use
+            model_id: Model ID for the default code generator if none provided
+        """
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.allowed_modules = ['math', 'datetime', 'json', 're']
-        self.allowed_builtins = [
-            'list', 'dict', 'set', 'tuple', 'int', 'float', 'str', 'bool',
-            'len', 'max', 'min', 'sum', 'sorted', 'enumerate', 'zip', 'range',
-            'True', 'False', 'None'
-        ]
+        
+        # Use provided code generator or create a default one
+        self.code_generator = code_generator or LLMCodeGenerator(model_id=model_id)
 
-    def parse_natural_language_instruction(self, instruction: str,
-                                           entity_type: str, command_type: str,
-                                           context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def parse_natural_language_instruction(self, 
+                                          instruction: str,
+                                          entity_type: str, 
+                                          command_type: str,
+                                          context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Parse a natural language instruction into executable Python code.
-
+        
         Args:
             instruction: The natural language instruction
             entity_type: The type of entity being manipulated (NODE/LINK)
             command_type: The command being executed (C/U/D/E)
             context: Optional context information
-
+            
         Returns:
             Dict with generated code and metadata
+            
+        Raises:
+            KGMLParseError: If parsing fails
         """
         self.logger.info(f"Parsing instruction for {command_type}► {entity_type}: {instruction}")
 
-        # Create appropriate system prompt based on command and entity type
-        system_prompt = self._create_system_prompt(entity_type, command_type)
-
-        # Prepare the prompt for the LLM
-        prompt = self._create_llm_prompt(instruction, entity_type, command_type, context)
-
-        # Get code from LLM
         try:
-            response = prompt_model(
-                message=prompt,
-                model="qwen2.5-coder:14b",
-                system_prompt=system_prompt
+            # Generate code using the code generator
+            code = self.code_generator.generate_code(
+                instruction=instruction,
+                entity_type=entity_type,
+                command_type=command_type,
+                context=context
             )
-
-            # Extract code from response
-            code = self._extract_code_from_response(response)
-
-            # Validate the code for security
-            self._validate_code(code)
-
+            
             return {
                 "code": code,
                 "original_instruction": instruction,
                 "command_type": command_type,
                 "entity_type": entity_type
             }
+        except CodeGenerationError as e:
+            self.logger.error(f"Error generating code: {str(e)}")
+            raise KGMLParseError(f"Failed to generate code: {str(e)}", e.details)
         except Exception as e:
-            self.logger.error(f"Error parsing instruction: {str(e)}")
-            raise ValueError(f"Failed to parse instruction: {str(e)}")
+            self.logger.error(f"Unexpected error in instruction parsing: {str(e)}")
+            raise KGMLParseError(f"Failed to parse instruction: {str(e)}")
 
-    def _create_system_prompt(self, entity_type: str, command_type: str) -> str:
+
+class RuleBasedCodeGenerator(CodeGenerator):
+    """
+    Code generator that uses predefined rules and templates.
+    
+    This generator can be used for simple, well-defined tasks where
+    LLM generation might be overkill or when LLM access is not available.
+    """
+    
+    def __init__(self):
+        """Initialize the rule-based code generator."""
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.templates = self._load_templates()
+        
+    def generate_code(self, 
+                     instruction: str, 
+                     entity_type: str, 
+                     command_type: str, 
+                     context: Optional[Dict[str, Any]] = None) -> str:
         """
-        Create an appropriate system prompt based on the command and entity type.
+        Generate Python code using predefined rules and templates.
+        
+        Args:
+            instruction: The natural language instruction
+            entity_type: The type of entity (NODE, LINK)
+            command_type: The type of command (C, U, D, E)
+            context: Optional additional context information
+            
+        Returns:
+            Generated Python code as a string
+            
+        Raises:
+            CodeGenerationError: If code generation fails
         """
-        base_prompt = """
-        You are a specialized code generator that converts natural language instructions 
-        to secure Python code for knowledge graph operations.
-
-        Your generated code MUST:
-        1. Only manipulate the 'node' or 'edge' object provided to the function
-        2. Use only basic Python operations (no imports except those explicitly allowed)
-        3. Store results in the 'result' variable as a dictionary
-        4. Be secure and not attempt to access any system resources
-        5. Not use exec(), eval(), or any other dangerous functions
-        6. Not import any modules except: math, datetime, json, re
-        7. Not try to access filesystem, network, or environment variables
-        8. Focus ONLY on the specific operation requested
-
-        Focus on generating concise, effective code that accomplishes the instruction.
-        """
-
-        if entity_type == "NODE":
-            if command_type == "C":
-                # Create node command
-                return base_prompt + """
-                The 'node' variable is a KGNode object with these fields:
-                - uid: Optional[str] - The node's unique identifier
-                - type: Optional[str] - The node's type
-                - meta_props: Dict[str, Any] - Dictionary of metadata properties
-                - created_at: Optional[str] - Creation timestamp
-                - updated_at: Optional[str] - Update timestamp
-
-                Your code should set appropriate values for these fields based on the instruction.
-                Remember to populate the 'result' variable with a dictionary containing at least
-                {'status': 'created', 'node_id': node.uid}
-                """
-            elif command_type == "U":
-                # Update node command
-                return base_prompt + """
-                The 'node' variable is an existing KGNode object you need to update based on the instruction.
-                You can modify:
-                - type: Optional[str] - The node's type
-                - meta_props: Dict[str, Any] - Dictionary of metadata properties
-                - updated_at: Optional[str] - Should be set to current time
-
-                DO NOT modify the node's uid.
-                Remember to populate the 'result' variable with a dictionary containing at least
-                {'status': 'updated', 'node_id': node.uid}
-                """
-            elif command_type == "E":
-                # Evaluate node command
-                return base_prompt + """
-                The 'node' variable is an existing KGNode object you need to evaluate.
-                You can access:
-                - node.uid: The node's unique identifier
-                - node.type: The node's type
-                - node.meta_props: Dictionary of metadata properties
-                - node.content: The node's content (if it's a DataNode)
-
-                Your code should compute a result based on the node's data and the instruction.
-                Store your evaluation results in the 'result' variable.
-                """
-        elif entity_type == "LINK":
-            if command_type == "C":
-                # Create link command
-                return base_prompt + """
-                The 'edge' variable is a KGEdge object with these fields:
-                - source_uid: str - The source node's uid
-                - target_uid: str - The target node's uid
-                - type: Optional[str] - The edge's type
-                - meta_props: Dict[str, Any] - Dictionary of metadata properties
-                - created_at: Optional[str] - Creation timestamp
-                - updated_at: Optional[str] - Update timestamp
-
-                Your code should set appropriate values for these fields based on the instruction.
-                Remember to populate the 'result' variable with a dictionary containing at least
-                {'status': 'created', 'edge': f"{edge.source_uid}->{edge.target_uid}"}
-                """
-            elif command_type == "U":
-                # Update link command
-                return base_prompt + """
-                The 'edge' variable is an existing KGEdge object you need to update based on the instruction.
-                You can modify:
-                - type: Optional[str] - The edge's type
-                - meta_props: Dict[str, Any] - Dictionary of metadata properties
-                - updated_at: Optional[str] - Should be set to current time
-
-                DO NOT modify the edge's source_uid or target_uid.
-                Remember to populate the 'result' variable with a dictionary containing at least
-                {'status': 'updated', 'edge': f"{edge.source_uid}->{edge.target_uid}"}
-                """
-
-        return base_prompt
-
-    def _create_llm_prompt(self, instruction: str, entity_type: str,
-                           command_type: str, context: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Create a prompt for the LLM based on the instruction and context.
-        """
-        command_names = {
-            "C": "Create",
-            "U": "Update",
-            "D": "Delete",
-            "E": "Evaluate"
-        }
-
-        entity_names = {
-            "NODE": "node",
-            "LINK": "edge"
-        }
-
-        cmd_name = command_names.get(command_type, command_type)
-        entity_name = entity_names.get(entity_type, entity_type.lower())
-
-        prompt = f"Generate Python code to {cmd_name.lower()} a knowledge graph {entity_name} based on this instruction:\n\n"
-        prompt += f"\"{instruction}\"\n\n"
-
-        # Add context if provided
-        if context:
-            prompt += "Additional context:\n"
-            for key, value in context.items():
-                prompt += f"- {key}: {value}\n"
-
-        prompt += f"\nCreate code to {cmd_name.lower()} the {entity_name} according to the instruction. "
-        prompt += f"Return only Python code within a code block that can be executed directly."
-
-        return prompt
-
-    def _extract_code_from_response(self, response: str) -> str:
-        """
-        Extract Python code from the LLM response.
-        """
-        # Try to find code blocks in markdown format
-        code_blocks = re.findall(r'```(?:python)?\n(.*?)\n```', response, re.DOTALL)
-        if code_blocks:
-            return code_blocks[0].strip()
-
-        # If no code blocks found, try to extract function definitions or code
-        lines = response.split('\n')
-        code_lines = []
-        in_code = False
-
-        for line in lines:
-            # Check for lines that look like code
-            if (line.strip().startswith('def ') or
-                    line.strip().startswith('# ') or
-                    line.strip().startswith('import ') or
-                    line.strip().startswith('from ') or
-                    '=' in line):
-                in_code = True
-
-            if in_code:
-                code_lines.append(line)
-
-            # End code block if we hit an empty line after code
-            if in_code and not line.strip():
-                in_code = False
-
-        extracted_code = '\n'.join(code_lines).strip()
-        if extracted_code:
-            return extracted_code
-
-        # As a fallback, use the entire response but warn
-        self.logger.warning("Could not extract code blocks from LLM response, using raw response")
-        return response.strip()
-
-    def _validate_code(self, code: str) -> None:
-        """
-        Validate the generated code for security violations.
-        Raises ValueError if the code is potentially unsafe.
-        """
-        # Parse the code to AST
         try:
-            tree = ast.parse(code)
+            # Get the appropriate template
+            template_key = f"{entity_type.lower()}_{command_type.lower()}"
+            template = self.templates.get(template_key)
+            
+            if not template:
+                raise CodeGenerationError(f"No template found for {template_key}")
+                
+            # Extract parameters from the instruction
+            params = self._extract_parameters(instruction, entity_type, command_type, context)
+            
+            # Fill in the template with the extracted parameters
+            code = template.format(**params)
+            
+            # Validate the generated code
+            self.validate_code(code)
+            
+            return code
+        except Exception as e:
+            raise CodeGenerationError(f"Failed to generate code: {str(e)}")
+    
+    def validate_code(self, code: str) -> None:
+        """
+        Validate generated code for syntax correctness.
+        
+        Args:
+            code: The code to validate
+            
+        Raises:
+            CodeGenerationError: If the code is invalid
+        """
+        try:
+            ast.parse(code)
         except SyntaxError as e:
-            raise ValueError(f"Invalid Python syntax in generated code: {e}")
+            raise CodeGenerationError(f"Invalid Python syntax: {e}")
+    
+    def _load_templates(self) -> Dict[str, str]:
+        """
+        Load code templates for different entity types and commands.
+        
+        Returns:
+            Dictionary of templates keyed by entity_type_command_type
+        """
+        return {
+            # Node creation template
+            "node_c": """
+# Create a node based on the instruction
+import datetime
 
-        # Walk through the AST and check for security violations
-        for node in ast.walk(tree):
-            # Check for imports
-            if isinstance(node, ast.Import):
-                for name in node.names:
-                    if name.name not in self.allowed_modules:
-                        raise ValueError(f"Disallowed import: {name.name}")
+# Set basic properties
+node.type = "{node_type}"
+node.meta_props.update({meta_props})
 
-            # Check for import from
-            elif isinstance(node, ast.ImportFrom):
-                if node.module not in self.allowed_modules:
-                    raise ValueError(f"Disallowed import from: {node.module}")
+# Set additional properties
+{additional_code}
 
-            # Check for dangerous function calls
-            elif isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name):
-                    if node.func.id in ['exec', 'eval', '__import__', 'compile']:
-                        raise ValueError(f"Disallowed function call: {node.func.id}")
+# Create result
+result = {{
+    "status": "created",
+    "node_id": node.uid,
+    "node_type": node.type
+}}
+""",
+            # Node update template
+            "node_u": """
+# Update a node based on the instruction
+import datetime
 
-                # Check for attribute access like os.system
-                elif isinstance(node.func, ast.Attribute):
-                    if isinstance(node.func.value, ast.Name):
-                        if node.func.value.id in ['os', 'subprocess', 'sys', 'builtins']:
-                            raise ValueError(f"Disallowed module usage: {node.func.value.id}")
+# Update meta properties
+{update_props}
 
-        # Additional security checks could be added here
+# Set additional properties
+{additional_code}
+
+# Create result
+result = {{
+    "status": "updated",
+    "node_id": node.uid
+}}
+""",
+            # Node evaluation template
+            "node_e": """
+# Evaluate a node based on the instruction
+{eval_code}
+
+# Create result
+result = {{
+    {result_definition}
+}}
+""",
+            # Link creation template
+            "link_c": """
+# Create a link based on the instruction
+import datetime
+
+# Set relation type
+edge.relation = "{relation_type}"
+
+# Set meta properties
+edge.meta_props.update({meta_props})
+
+# Create result
+result = {{
+    "status": "created", 
+    "edge": f"{{edge.source_uid}}->{{edge.target_uid}}",
+    "relation": edge.relation
+}}
+""",
+            # Link update template
+            "link_u": """
+# Update a link based on the instruction
+import datetime
+
+# Update relation if specified
+{relation_update}
+
+# Update meta properties
+{meta_update}
+
+# Create result
+result = {{
+    "status": "updated",
+    "edge": f"{{edge.source_uid}}->{{edge.target_uid}}"
+}}
+""",
+            # Link extraction template
+            "link_e": """
+# Extract source and target from the instruction
+instruction = "{instruction}"
+
+{extraction_code}
+
+# Set the result
+result = {{
+    "source": source,
+    "target": target
+}}
+"""
+        }
+    
+    def _extract_parameters(self, 
+                           instruction: str, 
+                           entity_type: str, 
+                           command_type: str, 
+                           context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Extract parameters from the instruction for template filling.
+        
+        Args:
+            instruction: The natural language instruction
+            entity_type: The type of entity (NODE, LINK)
+            command_type: The type of command (C, U, D, E)
+            context: Optional additional context information
+            
+        Returns:
+            Dictionary of parameters for template formatting
+        """
+        # This would need a much more sophisticated implementation for a real rule-based generator
+        # This is just a simple example
+        
+        params = {
+            "instruction": instruction,
+            "meta_props": "{}",
+            "additional_code": "# No additional properties to set",
+            "update_props": "# No properties to update",
+            "eval_code": "# Simple evaluation\neval_result = True",
+            "result_definition": '"result": True',
+            "relation_type": "GENERIC",
+            "relation_update": "# No relation update",
+            "meta_update": "# No meta properties to update",
+            "extraction_code": """
+# Simple extraction based on common patterns
+source = ""
+target = ""
+
+# Try to find "between X and Y" pattern
+if "between" in instruction.lower() and " and " in instruction.lower():
+    parts = instruction.lower().split("between", 1)[1]
+    if " and " in parts:
+        entities = parts.split(" and ", 1)
+        source = entities[0].strip()
+        target = entities[1].strip().split(" ", 1)[0]
+"""
+        }
+        
+        # Extract node type from context or instruction
+        if entity_type == "NODE" and command_type == "C":
+            # Try to extract node type from instruction
+            node_type_match = re.search(r'type(?:\s+is)?\s+(\w+)', instruction, re.IGNORECASE)
+            if node_type_match:
+                params["node_type"] = node_type_match.group(1)
+            else:
+                params["node_type"] = "GenericNode"
+                
+        # Extract relation type for links
+        if entity_type == "LINK" and command_type == "C":
+            # Try to extract relation type from instruction
+            relation_match = re.search(r'relation(?:\s+is)?\s+(\w+)', instruction, re.IGNORECASE)
+            if relation_match:
+                params["relation_type"] = relation_match.group(1)
+            elif "reply" in instruction.lower():
+                params["relation_type"] = "REPLY_TO"
+            elif "part of" in instruction.lower():
+                params["relation_type"] = "PART_OF"
+            elif "derived from" in instruction.lower() or "derives from" in instruction.lower():
+                params["relation_type"] = "DERIVES_FROM"
+            elif "augment" in instruction.lower():
+                params["relation_type"] = "AUGMENTS"
+            elif "reference" in instruction.lower():
+                params["relation_type"] = "REFERENCES"
+                
+        return params

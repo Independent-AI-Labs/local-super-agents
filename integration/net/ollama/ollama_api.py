@@ -9,8 +9,8 @@ def prompt_model(message: str, model: str, system_prompt: str = None) -> str:
         try:
             with open(system_prompt, "r", encoding="utf-8") as file:
                 system_prompt = file.read().strip()
-        except FileNotFoundError:
-            print(f"Loading '{system_prompt}' as the system prompt.")
+        except:
+            print(f"Loading '{system_prompt[:128]}...' as the system prompt.")
     else:
         system_prompt = "You are a professional AI assistant."
 

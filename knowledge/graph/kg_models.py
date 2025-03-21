@@ -329,6 +329,45 @@ class KnowledgeGraph:
             self.logger.debug(f"Query edges: Found {len(result)} results")
             return result
 
+    # Add this method to the KnowledgeGraph class in kg_models.py
+
+    def get_outgoing_edges(self, node_uid: str) -> List[KGEdge]:
+        """
+        Get all edges where the specified node is the source.
+
+        Args:
+            node_uid: The UID of the source node
+
+        Returns:
+            List of edges where the source_uid matches the given node_uid
+        """
+        with self._lock:
+            if node_uid not in self._graph:
+                self.logger.warning(f"Node {node_uid} does not exist for getting outgoing edges")
+                return []
+
+            result = []
+            # Get all edges where node_uid is the source
+            for source, target, data in self._graph.out_edges(node_uid, data=True):
+                try:
+                    # Get the class name from meta_props
+                    meta = data.get("meta_props", {})
+                    class_name = meta.get(CLASS_NAME_KEY)
+                    edge_cls = KGEdge  # default class
+
+                    if class_name:
+                        edge_cls = load_class_from_name(class_name, KGEdge)
+
+                    # Create an instance of the edge class with the edge data
+                    edge = edge_cls(**data)
+                    result.append(edge)
+
+                except Exception as e:
+                    self.logger.error(f"Error restoring edge '{source}->{target}': {e}")
+
+            self.logger.debug(f"Get outgoing edges for {node_uid}: Found {len(result)} edges")
+            return result
+
     # --------------------------------------------------------------------------
     # Persistence / Versioning for the Entire Graph (Global Snapshot)
     # --------------------------------------------------------------------------

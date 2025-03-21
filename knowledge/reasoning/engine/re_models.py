@@ -229,7 +229,7 @@ class ActionMetaNode(KGNode):
 
     It is read-only and stores metadata such as decision details, timestamp, and context.
     """
-    model_config = {"frozen": True}
+    # model_config = {"frozen": True}
 
 
 class EventMetaNode(KGNode):
@@ -238,4 +238,4 @@ class EventMetaNode(KGNode):
 
     It is read-only and stores metadata such as timing, source, and event-specific details.
     """
-    model_config = {"frozen": True}
+    # model_config = {"frozen": True}

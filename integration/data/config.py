@@ -80,6 +80,8 @@ DEFAULT_MODELFILE = fr'{INSTALL_PATH}\.agents\default.Modelfile'
 KGML_SYSTEM_PROMPT = fr'{INSTALL_PATH}\agents\knowledge\reasoning\prompts\KGML'
 
 WEB_SEARCH_MODEL = os.getenv('WEB_SEARCH_MODEL', 'qwen2.5-coder:14b')
+KGML_MODEL = os.getenv('KGML_MODEL', 'qwen2.5-coder:14b')
+PYTHON_INSTR_MODEL = os.getenv('PYTHON_INSTR_MODEL', 'qwen2.5-coder:14b')
 TOP_N_WEB_SEARCH_RESULTS = os.getenv('TOP_N_WEB_SEARCH_RESULTS', 5)
 DEFAULT_WEB_PAGE_TIMEOUT = os.getenv('DEFAULT_WEB_PAGE_TIMEOUT', 5)
 MAX_WEB_SCRAPE_WORKERS_PER_SEARCH = os.getenv('MAX_WEB_SCRAPE_WORKERS_PER_SEARCH', 8)

@@ -13,13 +13,14 @@ import gradio as gr
 
 # Import the controller
 from knowledge.reasoning.tests.util.kgml_test_result_viewer_controller import KGMLTestResultsController
+from knowledge.reasoning.tests.util.kgml_test_result_viewer_util import DEFAULT_BASE_DIR
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("KGMLViewer")
 
 # Create a controller instance
-controller = KGMLTestResultsController()
+controller = KGMLTestResultsController(DEFAULT_BASE_DIR)
 
 
 # ========== UI Event Handlers ==========
@@ -310,32 +311,3 @@ def create_ui():
         )
 
     return app
-
-
-# ========== Main Entry Point ==========
-
-def main():
-    """Main entry point for the application"""
-    import argparse
-
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="KGML Test Results Viewer")
-    parser.add_argument("--port", type=int, default=7860, help="Port to run the server on")
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to run the server on")
-    parser.add_argument("--share", action="store_true", help="Create a public link for sharing")
-    parser.add_argument("--base-dir", type=str, default="kgml_test_logs",
-                        help="Base directory for test logs")
-
-    args = parser.parse_args()
-
-    # Update controller with base directory
-    global controller
-    controller = KGMLTestResultsController(args.base_dir)
-
-    # Create and launch the UI
-    app = create_ui()
-    app.launch(server_name=args.host, server_port=args.port, share=args.share)
-
-
-if __name__ == "__main__":
-    main()

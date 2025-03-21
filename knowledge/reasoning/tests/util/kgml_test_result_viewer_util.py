@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("KGMLViewer")
 
 # Default base directory for test logs
-DEFAULT_BASE_DIR = "kgml_test_logs"
+DEFAULT_BASE_DIR = "kgml_reasoning_logs"
 
 
 # ========== Data Loading Functions ==========

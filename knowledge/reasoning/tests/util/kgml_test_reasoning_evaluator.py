@@ -9,7 +9,7 @@ import time
 from typing import Dict, Any, Optional
 
 from knowledge.graph.kg_models import KnowledgeGraph, KGNode, KGEdge
-from knowledge.reasoning.dsl.kgml_executor import KGMLExecutor
+from knowledge.reasoning.dsl.execution.kgml_executor import KGMLExecutor
 from knowledge.reasoning.tests.util.kgml_test_helpers import validate_kgml_with_error
 from knowledge.reasoning.tests.util.kgml_test_logger import KGMLTestLogger
 
