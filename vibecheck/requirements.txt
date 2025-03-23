@@ -1,0 +1,17 @@
+# Core dependencies
+gradio~=4.44.1
+pytest~=7.0.0
+
+# Visualization dependencies
+cairosvg~=2.7.1
+matplotlib~=3.9.4
+
+# Utilities
+requests~=2.32.3
+tqdm~=4.62.0
+
+ollama~=0.4.7
+selenium~=4.30.0
+scikit-learn~=1.6.1
+psutil~=7.0.0
+chardet~=5.2.0
