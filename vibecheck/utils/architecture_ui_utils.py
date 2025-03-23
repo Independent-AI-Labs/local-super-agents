@@ -1,0 +1,427 @@
+"""
+UI utility functions for the architecture module in VibeCheck.
+
+This module provides utility functions specifically for the architecture UI,
+handling document content management, visualization, and UI state management.
+"""
+
+import json
+import os
+from datetime import datetime
+from typing import List, Dict, Tuple, Any
+
+from vibecheck import config
+from vibecheck.controllers.architecture_controller import ArchitectureController
+from vibecheck.utils.file_utils import ensure_directory
+
+
+# ----- Document management utilities -----
+
+def get_document_list(project_path: str) -> Tuple[List[str], List[List[Any]], List[str]]:
+    """
+    Get unique list of documents with their metadata.
+    
+    Args:
+        project_path: Path to the project
+        
+    Returns:
+        Tuple of (doc_names, doc_rows, scope)
+    """
+    if not os.path.exists(project_path):
+        return [], [], []
+
+    docs_dir = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR)
+    if not os.path.exists(docs_dir):
+        ensure_directory(docs_dir)
+        return [], [], []
+
+    # Track unique document names to avoid duplication
+    unique_docs = {}
+
+    for filename in os.listdir(docs_dir):
+        # Only process supported file types
+        if not filename.endswith(('.json', '.md', '.txt', '.yaml', '.xml')):
+            continue
+
+        file_path = os.path.join(docs_dir, filename)
+        doc_name = os.path.splitext(filename)[0]
+
+        # Skip if we've already processed this document
+        if doc_name in unique_docs:
+            continue
+
+        # Get document metadata
+        mod_time = os.path.getmtime(file_path)
+        mod_date = datetime.fromtimestamp(mod_time)
+
+        # Check if the document has been analyzed
+        analysis_path = os.path.join(project_path, config.ARCHITECTURE_ANALYSIS_DIR, f"{doc_name}.json")
+        has_been_analyzed = os.path.exists(analysis_path)
+
+        # Check if the document has changed since last analysis
+        has_changed = False
+        if has_been_analyzed:
+            analysis_time = os.path.getmtime(analysis_path)
+            has_changed = mod_time > analysis_time
+
+        # Add to our unique documents dictionary
+        unique_docs[doc_name] = {
+            "name": doc_name,
+            "last_modified": mod_date,
+            "has_been_analyzed": has_been_analyzed,
+            "has_changed": has_changed
+        }
+
+    # Get current scope - get only document names, not full rows
+    scope_path = os.path.join(project_path, config.ARCHITECTURE_SCOPE_FILE)
+    scope = []
+    if os.path.exists(scope_path):
+        try:
+            with open(scope_path, 'r') as f:
+                scope_data = json.load(f)
+                raw_scope = scope_data.get('documents', [])
+                # Clean up the scope to ensure it only contains document names
+                for item in raw_scope:
+                    if isinstance(item, list) and len(item) > 0:
+                        scope.append(str(item[0]))
+                    elif item:
+                        scope.append(str(item))
+        except Exception as e:
+            print(f"Error loading scope: {e}")
+
+    # Format for UI components - just doc names
+    doc_names = list(unique_docs.keys())
+
+    # Format for details table
+    doc_rows = []
+    for doc_name, doc_info in unique_docs.items():
+        # Status column
+        status = ""
+        if doc_info["has_changed"]:
+            status = "🔄 Changed"
+        elif not doc_info["has_been_analyzed"]:
+            status = "⚠️ Not analyzed"
+        else:
+            status = "✅ Up to date"
+
+        doc_rows.append([
+            doc_name,
+            doc_info["last_modified"].strftime("%Y-%m-%d %H:%M"),
+            status
+        ])
+
+    return doc_names, doc_rows, scope
+
+
+def get_document_content(project_path: str, doc_name: str) -> str:
+    """
+    Get the content of a document.
+    
+    Args:
+        project_path: Path to the project
+        doc_name: Name of the document
+        
+    Returns:
+        Document content as string
+    """
+    if not project_path or not doc_name:
+        return ""
+
+    # Try loading from JSON first
+    json_path = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR, f"{doc_name}.json")
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, 'r') as f:
+                data = json.load(f)
+                if 'content' in data:
+                    return data['content']
+        except Exception as e:
+            print(f"Error loading JSON document {doc_name}: {e}")
+
+    # Fall back to markdown
+    md_path = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR, f"{doc_name}.md")
+    if os.path.exists(md_path):
+        try:
+            with open(md_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error loading MD document {doc_name}: {e}")
+
+    # Try other supported formats
+    for ext in ['.txt', '.yaml', '.xml']:
+        file_path = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR, f"{doc_name}{ext}")
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except Exception as e:
+                print(f"Error loading document {doc_name}{ext}: {e}")
+
+    return f"# {doc_name}\n\nNo content available or unable to load content."
+
+
+def get_document_content_safe(state: Dict, doc_name: str) -> str:
+    """
+    Safely get document content with proper state handling.
+    
+    Args:
+        state: Application state dictionary
+        doc_name: Name of the document
+        
+    Returns:
+        Document content as string
+    """
+    if not state.get("current_project"):
+        return ""
+
+    try:
+        project_path = state["current_project"].metadata.path
+        return get_document_content(project_path, doc_name)
+    except Exception as e:
+        print(f"Error getting document content: {e}")
+        return ""
+
+
+def save_document_content(project_path: str, doc_name: str, content: str) -> bool:
+    """
+    Save document content to both JSON and MD formats.
+    
+    Args:
+        project_path: Path to the project
+        doc_name: Name of the document
+        content: Document content
+        
+    Returns:
+        True if successfully saved, False otherwise
+    """
+    if not project_path or not doc_name or not isinstance(content, str):
+        return False
+
+    docs_dir = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR)
+    ensure_directory(docs_dir)
+
+    # Save as JSON
+    json_path = os.path.join(docs_dir, f"{doc_name}.json")
+    try:
+        document_data = {
+            'content': content,
+            'last_modified': datetime.now().isoformat()
+        }
+
+        with open(json_path, 'w') as f:
+            json.dump(document_data, f, indent=2)
+
+        # Also save as markdown
+        md_path = os.path.join(docs_dir, f"{doc_name}.md")
+        with open(md_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        return True
+    except Exception as e:
+        print(f"Error saving document {doc_name}: {e}")
+        return False
+
+
+def update_scope(project_path: str, scope: List[str]) -> bool:
+    """
+    Update the project scope.
+    
+    Args:
+        project_path: Path to the project
+        scope: List of document names in scope
+        
+    Returns:
+        True if successfully updated, False otherwise
+    """
+    if not project_path:
+        return False
+
+    # Ensure scope is a list of strings only
+    if not isinstance(scope, list):
+        scope = []
+
+    # Clean the scope to ensure it only contains string document names
+    clean_scope = []
+    for item in scope:
+        if isinstance(item, list) and len(item) > 0:
+            clean_scope.append(str(item[0]))
+        elif item:
+            clean_scope.append(str(item))
+
+    scope_path = os.path.join(project_path, config.ARCHITECTURE_SCOPE_FILE)
+
+    try:
+        scope_data = {
+            'documents': clean_scope,
+            'last_updated': datetime.now().isoformat()
+        }
+
+        ensure_directory(os.path.dirname(scope_path))
+
+        with open(scope_path, 'w') as f:
+            json.dump(scope_data, f, indent=2)
+
+        return True
+    except Exception as e:
+        print(f"Error saving scope: {e}")
+        return False
+
+
+def has_document_changed(project_path: str, doc_name: str) -> bool:
+    """
+    Check if document has changed since last analysis.
+    
+    Args:
+        project_path: Path to the project
+        doc_name: Name of the document
+        
+    Returns:
+        True if document has changed since last analysis, False otherwise
+    """
+    if not project_path or not doc_name:
+        return False
+
+    # Get document path
+    json_path = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR, f"{doc_name}.json")
+    md_path = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR, f"{doc_name}.md")
+
+    # Get document modified time
+    doc_mtime = 0
+    if os.path.exists(json_path):
+        doc_mtime = os.path.getmtime(json_path)
+    elif os.path.exists(md_path):
+        doc_mtime = os.path.getmtime(md_path)
+
+    # Get analysis path
+    analysis_path = os.path.join(project_path, config.ARCHITECTURE_ANALYSIS_DIR, f"{doc_name}.json")
+
+    # If no analysis exists, document needs analysis
+    if not os.path.exists(analysis_path):
+        return True
+
+    # Check if document modified after analysis
+    analysis_mtime = os.path.getmtime(analysis_path)
+    return doc_mtime > analysis_mtime
+
+
+def display_diagram(project_path: str, doc_name: str, diagram_type: str) -> str:
+    """
+    Display a diagram based on type.
+
+    Args:
+        project_path: Path to the project
+        doc_name: Name of the document
+        diagram_type: Type of diagram to display
+
+    Returns:
+        HTML content for diagram display
+    """
+    if not project_path or not doc_name:
+        return "<p>⚠️ Select a document first</p>"
+
+    if diagram_type == "mermaid":
+        # Get Mermaid diagram by calling controller
+        try:
+            mermaid_code = ArchitectureController.get_mermaid_diagram(project_path, doc_name)
+            if not mermaid_code or mermaid_code.strip() == "":
+                return "<p>⚠️ No Mermaid diagram available. Please generate diagrams first.</p>"
+
+            print(f"Generated Mermaid diagram of length: {len(mermaid_code)}")
+
+            return f"""
+            <div class="mermaid">
+            {mermaid_code}
+            </div>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+            <script>mermaid.initialize({{startOnLoad:true}});</script>
+            """
+        except Exception as e:
+            print(f"Error generating Mermaid diagram: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"<p>❌ Error generating Mermaid diagram: {str(e)}</p>"
+
+    # Get regular SVG diagram by calling controller
+    try:
+        diagram = ArchitectureController.get_diagram(project_path, doc_name, diagram_type)
+        if diagram and hasattr(diagram, 'content') and diagram.content:
+            print(f"Got {diagram_type} diagram of length: {len(diagram.content)}")
+            return f'<div style="padding: 10px; border: 1px solid #ddd; border-radius: 8px; background-color: white;">{diagram.content}</div>'
+        else:
+            print(f"No {diagram_type} diagram available for {doc_name}")
+            return '<p>⚠️ No diagram available. Please generate diagrams first.</p>'
+    except Exception as e:
+        print(f"Error loading diagram: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"<p>❌ Error loading diagram: {str(e)}</p>"
+
+
+# ----- UI state management utilities -----
+
+def create_default_document_content(doc_name: str) -> str:
+    """
+    Create default content for a new document.
+    
+    Args:
+        doc_name: Name of the document
+        
+    Returns:
+        Default document content
+    """
+    return f"""# {doc_name}
+
+## System Overview
+
+Describe your system here...
+
+## Components
+
+- Component 1: Description of component 1
+- Component 2: Description of component 2
+
+## Relationships
+
+- Component 1 communicates with Component 2
+"""
+
+
+def clean_document_selection(selected_docs: List) -> List[str]:
+    """
+    Clean document selection to ensure proper format.
+    
+    Args:
+        selected_docs: List of selected documents (potentially mixed formats)
+        
+    Returns:
+        Cleaned list of document names as strings
+    """
+    if not isinstance(selected_docs, list):
+        selected_docs = [str(selected_docs)] if selected_docs else []
+
+    # Convert any non-string elements to strings and filter out empty values
+    clean_selected_docs = []
+    for doc in selected_docs:
+        if isinstance(doc, list) and len(doc) > 0:
+            # Handle case where we get rows instead of document names
+            clean_selected_docs.append(str(doc[0]))
+        elif doc:
+            clean_selected_docs.append(str(doc))
+
+    return clean_selected_docs
+
+
+def format_scope_text(scope: List[str]) -> str:
+    """
+    Format the scope text for display.
+    
+    Args:
+        scope: List of document names in scope
+        
+    Returns:
+        Formatted scope text
+    """
+    if not scope:
+        return "🔍 **Current Scope:** No documents selected"
+
+    return f"🔍 **Current Scope:** {', '.join(scope)}"

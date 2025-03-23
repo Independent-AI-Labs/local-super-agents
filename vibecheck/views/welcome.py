@@ -49,12 +49,12 @@ def create_welcome_tab() -> Tuple[gr.Tab, Dict]:
                     pass  # Spacer for centering
                 
                 with gr.Column(scale=2, elem_id="select-directory-container"):
-                    gr.Markdown("### Select a Project Directory")
+                    gr.Markdown("### Select a GIT Repository")
                     select_dir_btn = gr.Button("📂 Select Directory", size="lg", variant="primary")
                     
                     # Current path display
                     current_dir = gr.Textbox(
-                        label="Current Directory",
+                        label="Selected Directory",
                         value=os.getcwd(),
                         interactive=False
                     )
