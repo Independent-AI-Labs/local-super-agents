@@ -54,16 +54,7 @@ MODEL_FOR_IMPLEMENTATION = "qwen2.5-coder:14b"
 MODEL_FOR_TEST = "qwen2.5-coder:14b"
 MODEL_FOR_ENVIRONMENT = "qwen2.5-coder:14b"
 
-# LLM prompt templates
-PROMPT_FOR_ARCH_ANALYSIS = """
-You are a software architecture expert. Analyze the following architecture document 
-and provide insights about:
-1. Overall architecture quality and completeness
-2. Component relationships and dependencies
-3. Potential issues or areas for improvement
-4. Suggestions for implementation
-"""
-
+# TODO Move away.
 PROMPT_FOR_SECURITY = """
 You are a cybersecurity expert. Analyze the following security vulnerabilities
 and provide:
@@ -71,33 +62,6 @@ and provide:
 2. Root causes of the vulnerabilities
 3. Recommended fixes and mitigations
 4. Best practices to prevent similar issues
-"""
-
-PROMPT_FOR_IMPLEMENTATION = """
-You are a senior software engineer. Analyze the following implementation code
-and provide:
-1. Assessment of code quality and completeness
-2. Adherence to the architectural design
-3. Potential optimizations and improvements
-4. Suggestions for testing
-"""
-
-PROMPT_FOR_TEST = """
-You are a quality assurance expert. Analyze the following test results
-and provide:
-1. Assessment of test coverage and quality
-2. Potential gaps in testing
-3. Suggestions for additional tests
-4. Root causes of test failures
-"""
-
-PROMPT_FOR_ENVIRONMENT = """
-You are a DevOps expert. Analyze the following environment configuration
-and provide:
-1. Assessment of completeness and correctness
-2. Potential issues or bottlenecks
-3. Security considerations
-4. Suggestions for improvement
 """
 
 # Web integration settings

@@ -3,7 +3,7 @@ Constants module for the VibeCheck architecture module.
 Contains all strings, prompts, and messages used in the architecture UI.
 """
 
-# UI Labels and Titles
+# ===== UI Labels and Titles =====
 TAB_TITLE = "🏗️ Architecture & Scope"
 TAB_DESCRIPTION = """
 # 🏗️ Software Architecture & Analysis Scope
@@ -11,13 +11,14 @@ TAB_DESCRIPTION = """
 Define this project's software architecture and select which design documents are part of the current scope.
 """
 
+# ===== Document Management =====
 DOCUMENTS_HEADER = "### 📚 Design Documents"
 DOCUMENT_LABEL = "Scope"
 DOCUMENT_INFO = "Select documents to include in the scope"
 DOCUMENT_HEADERS = ["📋 Title", "🔍 Status"]
 UPLOAD_INFO = "*Supports .json, .yaml, .xml, .txt, .md*"
 
-# Button Labels
+# ===== Button Labels =====
 NEW_DOC_BTN = "📄 New Document"
 UPLOAD_DOC_BTN = "📤 Upload Document"
 DELETE_BTN = "🗑️ Delete Selected"
@@ -28,12 +29,12 @@ ANALYZE_BTN = "🔍 Analyze & Generate Diagrams"
 RUN_CRITICAL_ANALYSIS_BTN = "🔍 Run Critical Analysis"
 GENERATE_DIAGRAMS_BTN = "📊 Generate Diagrams"
 
-# Tab Labels
+# ===== Tab Labels =====
 DOCUMENT_TAB = "📝 Document"
 DIAGRAMS_TAB = "📊 Diagrams"
 ANALYSIS_TAB = "🔍 Analysis"
 
-# Diagram Types
+# ===== Diagram Types =====
 DIAGRAM_TYPES = [
     ("Module Diagram", "module"),
     ("Data Flow Diagram", "dataflow"),
@@ -42,11 +43,11 @@ DIAGRAM_TYPES = [
 ]
 DIAGRAM_TYPE_LABEL = "📊 Diagram Type"
 
-# Table Headers
+# ===== Table Headers =====
 COMPONENTS_TABLE_HEADERS = ["📦 Component", "📝 Description"]
 RELATIONSHIPS_TABLE_HEADERS = ["📦 Source", "🔄 Relationship", "📦 Target"]
 
-# Messages and Prompts
+# ===== Status Messages =====
 NO_DOCUMENT_SELECTED = "### Select a document from the list"
 NO_DOCUMENT_CONTENT = "Select a document from the list to view its content."
 NO_DIAGRAM_SELECTED = "<p>Select a document and diagram type to view.</p>"
@@ -60,16 +61,13 @@ GENERATING_DIAGRAMS = "<p>Generating diagrams...</p>"
 NO_SCOPE = "🔍 **Current Scope:** No documents selected"
 SCOPE_ERROR = "🔍 **Current Scope:** Error loading documents"
 
-# Warning Messages
+# ===== Warning Messages =====
 DOCUMENT_CHANGED_WARNING = """
 ⚠️ **Document has been modified since last analysis.**  
 You should analyze it again to update diagrams and analysis.
 """
 
-# Analysis Prompt Enhancement
-ANALYSIS_FOCUS_APPENDIX = "\n\n## Analysis Focus: Code Quality\nPlease provide a critical analysis focused on improving code quality."
-
-# Default Document Content
+# ===== Default Document Content =====
 DEFAULT_DOCUMENT_TEMPLATE = """# {doc_name}
 
 ## System Overview
@@ -86,7 +84,7 @@ Describe your system here...
 - Component 1 communicates with Component 2
 """
 
-# Error Messages
+# ===== Error Messages =====
 ERROR_LOADING_DOCUMENTS = "Error loading documents: {error}"
 ERROR_READING_FILE = "Error reading file: {error}"
 ERROR_DELETING_DOCUMENT = "Error deleting {path}: {error}"

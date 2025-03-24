@@ -7,12 +7,21 @@ import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
+from vibecheck.config import MODEL_FOR_ARCH_ANALYSIS
 from vibecheck.models.architecture import ArchitecturalDocument, ArchitecturalDiagram
-from vibecheck.integrations.llm import analyze_architecture
-from vibecheck.utils.diagram_utils import generate_diagrams, extract_components_from_architecture, extract_relationships_from_architecture
+from vibecheck.integrations.llm import analyze_with_llm
+from vibecheck.utils.diagram_utils import extract_components_from_architecture, extract_relationships_from_architecture
 from vibecheck.utils.file_utils import ensure_directory, write_file, read_file
 from vibecheck.utils.cache_utils import AnalysisCache
 from vibecheck.utils.architecture_utils import ArchitectureDocumentManager
+from vibecheck.constants.architecture_prompts import (
+    DIAGRAM_GENERATION_PROMPT, 
+    MERMAID_DIAGRAM_PROMPT, 
+    MODULE_DIAGRAM_PROMPT,
+    DATAFLOW_DIAGRAM_PROMPT,
+    SECURITY_DIAGRAM_PROMPT,
+    ARCHITECTURE_ANALYSIS_PROMPT
+)
 from vibecheck import config
 
 
@@ -105,7 +114,7 @@ class ArchitectureController:
     @staticmethod
     def generate_diagrams(project_path: str, doc_name: str, document_content: str) -> Dict[str, ArchitecturalDiagram]:
         """
-        Generate architectural diagrams from the document.
+        Generate architectural diagrams from the document using the prompt model.
 
         Args:
             project_path: Path to the project
@@ -134,22 +143,66 @@ class ArchitectureController:
                 )
         
         if not diagrams:
-            # Generate new diagrams
+            # Generate new diagrams using prompt_model
             try:
-                # Extract components and relationships
+                # Extract components and relationships for context
                 components = extract_components_from_architecture(document_content)
                 relationships = extract_relationships_from_architecture(document_content)
                 
-                # Generate SVG diagrams
-                svg_diagrams = generate_diagrams(document_content)
+                # Generate diagrams for each type
+                diagram_types = {
+                    "module": MODULE_DIAGRAM_PROMPT,
+                    "dataflow": DATAFLOW_DIAGRAM_PROMPT,
+                    "security": SECURITY_DIAGRAM_PROMPT,
+                    "mermaid": MERMAID_DIAGRAM_PROMPT
+                }
                 
-                # Create ArchitecturalDiagram objects
-                for diagram_type, svg_content in svg_diagrams.items():
-                    diagrams[diagram_type] = ArchitecturalDiagram(
-                        diagram_type=diagram_type,
-                        content=svg_content,
-                        generated_at=now
-                    )
+                for diagram_type, prompt_template in diagram_types.items():
+                    try:
+                        # Prepare prompt with document content
+                        prompt = prompt_template.format(
+                            document_content=document_content,
+                            components=json.dumps(components, indent=2),
+                            relationships=json.dumps(relationships, indent=2)
+                        )
+                        
+                        # Call analyze_with_llm to generate the diagram
+                        if diagram_type == "mermaid":
+                            # For mermaid, we want the raw mermaid code
+                            result = analyze_with_llm(document_content, MODEL_FOR_ARCH_ANALYSIS, prompt)
+                            # Extract mermaid code from the result
+                            mermaid_code = result.strip()
+                            # Store mermaid code directly
+                            svg_content = mermaid_code
+                        else:
+                            # For SVG diagrams, prompt for SVG content
+                            svg_prompt = f"{prompt}\nPlease output a complete SVG diagram."
+                            result = analyze_with_llm(document_content, MODEL_FOR_ARCH_ANALYSIS, svg_prompt)
+                            
+                            # Extract SVG content (anything between <svg and </svg>)
+                            import re
+                            svg_match = re.search(r'<svg.*?</svg>', result, re.DOTALL)
+                            if svg_match:
+                                svg_content = svg_match.group(0)
+                            else:
+                                # Fallback if no SVG tag found - create minimal valid SVG
+                                svg_content = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300"><text x="50" y="50" font-family="Arial" font-size="16">{diagram_type.capitalize()} diagram for {doc_name}</text></svg>'
+                        
+                        # Create ArchitecturalDiagram object
+                        diagrams[diagram_type] = ArchitecturalDiagram(
+                            diagram_type=diagram_type,
+                            content=svg_content,
+                            generated_at=now
+                        )
+                        
+                    except Exception as e:
+                        print(f"Error generating {diagram_type} diagram: {e}")
+                        # Add a placeholder diagram for the failed type
+                        diagrams[diagram_type] = ArchitecturalDiagram(
+                            diagram_type=diagram_type,
+                            content=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300"><text x="50" y="50" font-family="Arial" font-size="16">Failed to generate {diagram_type} diagram: {str(e)}</text></svg>',
+                            generated_at=now
+                        )
                 
                 # Cache the generated diagrams
                 AnalysisCache.cache_analysis(
@@ -162,10 +215,10 @@ class ArchitectureController:
             except Exception as e:
                 print(f"Error generating diagrams: {e}")
                 # Create placeholder diagrams if generation fails
-                for diagram_type in ["module", "dataflow", "security"]:
+                for diagram_type in ["module", "dataflow", "security", "mermaid"]:
                     diagrams[diagram_type] = ArchitecturalDiagram(
                         diagram_type=diagram_type,
-                        content=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300"><text x="50" y="50" font-family="Arial" font-size="16">Placeholder {diagram_type} diagram</text></svg>',
+                        content=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300"><text x="50" y="50" font-family="Arial" font-size="16">Error generating {diagram_type} diagram: {str(e)}</text></svg>',
                         generated_at=now
                     )
         
@@ -280,53 +333,18 @@ class ArchitectureController:
             return cached_analysis
 
         try:
-            # Generate new analysis with enhanced critical focus
-            # Modify the prompt to the LLM to emphasize code quality
-            enhanced_prompt = f"""
-            Analyze the following software architecture document with a strong focus on improving code quality.
-
-            Be critical and identify:
-            1. Potential code quality issues
-            2. Design weaknesses that could lead to technical debt
-            3. Component coupling and cohesion concerns
-            4. Violation of SOLID principles
-            5. Architectural anti-patterns
-            6. Security vulnerabilities
-            7. Performance bottlenecks
-            8. Testing challenges
-
-            Document content:
-            {document_content}
-
-            Provide a detailed analysis with concrete improvement recommendations.
-            """
-
-            # Call the existing analyze_architecture function with enhanced prompt
-            analysis = analyze_architecture(enhanced_prompt)
-
-            # Format the analysis to highlight critical aspects
-            formatted_analysis = f"""
-            # Critical Architecture Analysis
-
-            ## Code Quality Review
-
-            {analysis}
-
-            ## Recommended Improvements
-
-            Based on the analysis, these are the top issues that should be addressed to improve code quality:
-
-            1. [Will be filled by the LLM based on the analysis]
-            2. [Will be filled by the LLM based on the analysis]
-            3. [Will be filled by the LLM based on the analysis]
-            """
-
+            # Generate new analysis with analyze_with_llm
+            system_prompt = ARCHITECTURE_ANALYSIS_PROMPT.format(document_content=document_content)
+            
+            # Call analyze_with_llm for more control
+            analysis = analyze_with_llm(document_content, MODEL_FOR_ARCH_ANALYSIS, system_prompt)
+            
             # Cache the enhanced analysis
             AnalysisCache.cache_analysis(
                 project_path,
                 cache_key,
                 "analysis",
-                formatted_analysis,
+                analysis,
                 ttl_seconds=86400  # 24 hours
             )
 
@@ -337,14 +355,14 @@ class ArchitectureController:
 
             with open(analysis_path, 'w') as f:
                 json.dump({
-                    'content': formatted_analysis,
+                    'content': analysis,
                     'generated_at': datetime.now().isoformat()
                 }, f, indent=2)
 
-            return formatted_analysis
+            return analysis
         except Exception as e:
             print(f"Error analyzing architecture document: {e}")
-            return "Error analyzing architecture document. Please try again later."
+            return f"Error analyzing architecture document: {str(e)}. Please try again later."
 
     @staticmethod
     def get_components_and_relationships(project_path: str, doc_name: str) -> Dict:
@@ -372,9 +390,37 @@ class ArchitectureController:
             return cached_data
         
         try:
-            # Extract components and relationships
-            components = extract_components_from_architecture(document.content)
-            relationships = extract_relationships_from_architecture(document.content)
+            # Extract components and relationships using analyze_with_llm for more accurate results
+            system_prompt = f"""
+            Extract components and their relationships from the following architecture document.
+            
+            Output a JSON object with two keys:
+            1. "components" - an array of objects with "name" and "description" fields
+            2. "relationships" - an array of objects with "source", "target", and "type" fields
+            
+            The relationship types should be one of: "depends_on", "calls", "uses", "includes", "implements", "extends", "contains"
+            
+            Format the output as valid JSON only.
+            """
+            
+            result = analyze_with_llm(document.content, MODEL_FOR_ARCH_ANALYSIS, system_prompt)
+            
+            # Extract JSON from the result
+            import re
+            json_match = re.search(r'\{.*\}', result, re.DOTALL)
+            if json_match:
+                try:
+                    extracted_data = json.loads(json_match.group(0))
+                    components = extracted_data.get("components", [])
+                    relationships = extracted_data.get("relationships", [])
+                except json.JSONDecodeError:
+                    # Fallback to traditional extraction methods
+                    components = extract_components_from_architecture(document.content)
+                    relationships = extract_relationships_from_architecture(document.content)
+            else:
+                # Fallback to traditional extraction methods
+                components = extract_components_from_architecture(document.content)
+                relationships = extract_relationships_from_architecture(document.content)
             
             result = {
                 "components": components,
@@ -393,7 +439,13 @@ class ArchitectureController:
             return result
         except Exception as e:
             print(f"Error extracting components and relationships: {e}")
-            return {"components": [], "relationships": []}
+            # Fallback to traditional extraction methods
+            try:
+                components = extract_components_from_architecture(document.content)
+                relationships = extract_relationships_from_architecture(document.content)
+                return {"components": components, "relationships": relationships}
+            except:
+                return {"components": [], "relationships": []}
 
     @staticmethod
     def get_mermaid_diagram(project_path: str, doc_name: str) -> str:
@@ -407,17 +459,71 @@ class ArchitectureController:
         Returns:
             Mermaid diagram code
         """
-        from vibecheck.utils.diagram_utils import get_mermaid_from_components
+        # Get document content
+        document = ArchitectureController.load_document(project_path, doc_name)
+        if not document or not document.content:
+            return "graph TD\n    A[No document content found] --> B[Add content to your architecture document]"
         
-        # Get components and relationships
-        data = ArchitectureController.get_components_and_relationships(project_path, doc_name)
-        components = data["components"]
-        relationships = data["relationships"]
+        # Check cache for existing mermaid diagram
+        cache_key = f"architecture_{doc_name}"
+        cached_diagrams = AnalysisCache.get_cached_analysis(project_path, cache_key, "diagrams")
+        if cached_diagrams and isinstance(cached_diagrams, dict) and "mermaid" in cached_diagrams:
+            return cached_diagrams["mermaid"]
         
-        if not components:
-            return "graph TD\n    A[No components found] --> B[Add components to your architecture document]"
-        
-        return get_mermaid_from_components(components, relationships)
+        # Generate a new mermaid diagram using prompt_model
+        try:
+            system_prompt = MERMAID_DIAGRAM_PROMPT.format(document_content=document.content)
+            mermaid_code = analyze_with_llm(document.content, MODEL_FOR_ARCH_ANALYSIS, system_prompt)
+            
+            # Clean up the response to extract just the mermaid code
+            import re
+            mermaid_match = re.search(r'```mermaid\n(.*?)\n```', mermaid_code, re.DOTALL)
+            if mermaid_match:
+                cleaned_mermaid = mermaid_match.group(1)
+            else:
+                # Try to find any code block
+                code_match = re.search(r'```\w*\n(.*?)\n```', mermaid_code, re.DOTALL)
+                if code_match:
+                    cleaned_mermaid = code_match.group(1)
+                else:
+                    # Use the whole response if no code block is found
+                    cleaned_mermaid = mermaid_code.strip()
+            
+            # Store in cache
+            if cached_diagrams and isinstance(cached_diagrams, dict):
+                cached_diagrams["mermaid"] = cleaned_mermaid
+                AnalysisCache.cache_analysis(
+                    project_path,
+                    cache_key,
+                    "diagrams",
+                    cached_diagrams,
+                    ttl_seconds=86400  # 24 hours
+                )
+            else:
+                AnalysisCache.cache_analysis(
+                    project_path,
+                    cache_key,
+                    "diagrams",
+                    {"mermaid": cleaned_mermaid},
+                    ttl_seconds=86400  # 24 hours
+                )
+            
+            return cleaned_mermaid
+            
+        except Exception as e:
+            print(f"Error generating mermaid diagram: {e}")
+            # Fallback to generating from components
+            try:
+                # Get components and relationships
+                data = ArchitectureController.get_components_and_relationships(project_path, doc_name)
+                components = data["components"]
+                relationships = data["relationships"]
+                
+                from vibecheck.utils.diagram_utils import get_mermaid_from_components
+                return get_mermaid_from_components(components, relationships)
+            except Exception as e:
+                print(f"Fallback mermaid generation failed: {e}")
+                return "graph TD\n    A[Error generating diagram] --> B[Please try again]"
 
     @staticmethod
     def _save_diagrams(project_path: str, doc_name: str, diagrams: Dict[str, ArchitecturalDiagram]) -> None:

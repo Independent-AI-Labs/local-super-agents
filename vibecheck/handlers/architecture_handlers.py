@@ -925,7 +925,7 @@ class ArchitectureHandlers:
             ensure_directory(scope_dir)
 
             # Generate a unique document name
-            base_name = "new_architecture"
+            base_name = "Specification "
             doc_name = base_name
             count = 1
 
@@ -938,7 +938,7 @@ class ArchitectureHandlers:
                 doc_names = []
 
             while doc_name in doc_names:
-                doc_name = f"{base_name}_{count}"
+                doc_name = f"{base_name} {count}"
                 count += 1
 
             print(f"Generated unique name: {doc_name}")

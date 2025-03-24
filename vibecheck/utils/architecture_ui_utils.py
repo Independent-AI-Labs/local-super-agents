@@ -13,6 +13,14 @@ from typing import List, Dict, Tuple, Any
 from vibecheck import config
 from vibecheck.controllers.architecture_controller import ArchitectureController
 from vibecheck.utils.file_utils import ensure_directory
+from vibecheck.constants.architecture_constants import (
+    DEFAULT_DOCUMENT_TEMPLATE,
+    NO_DOCUMENT_FIRST,
+    NO_PROJECT_OPEN,
+    NO_SCOPE,
+    SCOPE_ERROR,
+    NO_DIAGRAM_SELECTED
+)
 
 
 # ----- Document management utilities -----
@@ -75,6 +83,7 @@ def get_document_list(project_path: str) -> Tuple[List[str], List[List[Any]], Li
 
     # Update scope file to match current state
     try:
+        ensure_directory(os.path.dirname(scope_path))
         with open(scope_path, 'w') as f:
             json.dump({
                 'documents': valid_scope,
@@ -290,7 +299,7 @@ def display_diagram(project_path: str, doc_name: str, diagram_type: str) -> str:
         HTML content for diagram display
     """
     if not project_path or not doc_name:
-        return "<p>⚠️ Select a document first</p>"
+        return NO_DOCUMENT_FIRST
 
     if diagram_type == "mermaid":
         # Get Mermaid diagram by calling controller
@@ -342,21 +351,7 @@ def create_default_document_content(doc_name: str) -> str:
     Returns:
         Default document content
     """
-    return f"""# {doc_name}
-
-## System Overview
-
-Describe your system here...
-
-## Components
-
-- Component 1: Description of component 1
-- Component 2: Description of component 2
-
-## Relationships
-
-- Component 1 communicates with Component 2
-"""
+    return DEFAULT_DOCUMENT_TEMPLATE.format(doc_name=doc_name)
 
 
 def clean_document_selection(selected_docs):
@@ -415,6 +410,6 @@ def format_scope_text(scope: List[str]) -> str:
         Formatted scope text
     """
     if not scope:
-        return "🔍 **Current Scope:** No documents selected"
+        return NO_SCOPE
 
     return f"🔍 **Current Scope:** {', '.join(scope)}"
