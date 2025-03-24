@@ -37,8 +37,8 @@ def create_app() -> gr.Blocks:
         gr.Markdown(
             """
             <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
-                <p>✨ VibeCheck - Put an end to "vibe coding" and start building proper software. ✨</p>
-                <p style="font-size: 0.8em; color: #666;">© 2025 VibeCheck</p>
+                <p>✨ DO NOT fail the VibeCheck. ✨</p>
+                <p style="font-size: 0.8em; color: #666;">© 2025 Independent AI Labs</p>
             </div>
             """
         )

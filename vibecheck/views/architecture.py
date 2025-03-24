@@ -1,26 +1,20 @@
 """
-Complete fixed architecture.py with all fixes implemented and all event handlers properly configured.
+Architecture tab module for the VibeCheck app.
+
+This module contains the main tab creation function and UI components.
+Event handling and business logic are in architecture_handlers.py.
 """
 
 from typing import Dict, List, Optional, Tuple, Any, Union
 import os
-import json
-from datetime import datetime
 
 import gradio as gr
 
-from vibecheck.controllers.architecture_controller import ArchitectureController
-from vibecheck.models.architecture import ArchitecturalDocument, ArchitecturalDiagram
-from vibecheck.utils.architecture_utils import ArchitectureDocumentManager, FileChangeTracker
-from vibecheck.utils.cache_utils import AnalysisCache
-from vibecheck.utils.file_utils import ensure_directory, read_file, write_file
-from vibecheck.utils.architecture_ui_utils import (
-    get_document_list, get_document_content, get_document_content_safe,
-    save_document_content, update_scope, has_document_changed, display_diagram,
-    create_default_document_content, clean_document_selection, format_scope_text
-)
+from vibecheck.utils.file_utils import ensure_directory
+from vibecheck.utils.architecture_ui_utils import format_scope_text
 from vibecheck import config
 from vibecheck.constants.architecture_constants import *
+from vibecheck.handlers.architecture_handlers import ArchitectureHandlers
 
 
 def create_architecture_tab(state: Dict) -> gr.Tab:
@@ -65,13 +59,14 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                     visible=True,      # Explicitly make visible
                     container=True,    # Ensure container is rendered
                     scale=1,           # Full width
-                    min_width=200      # Minimum width to ensure visibility
+                    min_width=200,      # Minimum width to ensure visibility
+                    show_label=False
                 )
                 
                 # Document details
                 document_details = gr.Dataframe(
                     headers=DOCUMENT_HEADERS,
-                    col_count=(3, "fixed"),
+                    col_count=(2, "fixed"),
                     interactive=False,
                     elem_id="document-details",
                     label="Document Details",
@@ -161,7 +156,8 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                             choices=DIAGRAM_TYPES,
                             label=DIAGRAM_TYPE_LABEL,
                             value="module",
-                            elem_id="diagram-type-selector"
+                            elem_id="diagram-type-selector",
+                            interactive=False
                         )
                         
                         # Progress/status indicator for diagrams - hidden but kept for event handling
@@ -214,518 +210,59 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                                     height=450  # Increased from 300 to 450 (50% taller)
                                 )
         
-        # ----- MAIN FUNCTIONS -----
+        # Create a dictionary of UI components to be used by the handlers
+        components = {
+            "document_list": document_list,
+            "document_details": document_details,
+            "current_doc_name": current_doc_name,
+            "document_heading": document_heading,
+            "document_display": document_display,
+            "document_editor": document_editor,
+            "change_warning": change_warning,
+            "scope_display": scope_display,
+            "edit_btn": edit_btn,
+            "save_btn": save_btn,
+            "cancel_btn": cancel_btn,
+            "analyze_btn": analyze_btn,
+            "generate_diagrams_btn": generate_diagrams_btn,
+            "diagram_type": diagram_type,
+            "diagram_status": diagram_status,
+            "diagram_viewer": diagram_viewer,
+            "analyze_tab_btn": analyze_tab_btn,
+            "analysis_result": analysis_result,
+            "components_table": components_table,
+            "relationships_table": relationships_table,
+            "status_msg": status_msg,
+            "document_tabs": document_tabs
+        }
         
-        def load_documents():
-            """Load document list, details and scope."""
-            if not state.get("current_project"):
-                return [], [], [], NO_SCOPE
-            
-            try:
-                project_path = state["current_project"].metadata.path
-                
-                # Ensure architecture directories exist
-                docs_dir = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR)
-                ensure_directory(docs_dir)
-                
-                # Get document list and scope
-                doc_names, doc_rows, scope = get_document_list(project_path)
-                
-                # Store scope in state
-                document_state["scope"] = scope
-                
-                # Make sure scope is a list of strings
-                if not isinstance(scope, list):
-                    scope = []
-                
-                # Ensure scope only contains document names as strings
-                clean_scope = clean_document_selection(scope)
-                
-                # Update scope text
-                scope_text = format_scope_text(clean_scope)
-                
-                # Print for debugging
-                print(f"Loaded {len(doc_names)} documents: {doc_names}")
-                print(f"Scope: {clean_scope}")
-                
-                # Return document names for the checkbox group, cleaned scope, and rows for the details table
-                return doc_names, clean_scope, doc_rows, scope_text
-            except Exception as e:
-                print(ERROR_LOADING_DOCUMENTS.format(error=e))
-                return [], [], [], SCOPE_ERROR
+        # Initialize the handlers
+        handlers = ArchitectureHandlers(state, document_state, components)
         
-        def ensure_scope_ui_update():
-            """Force reload the document list and scope to ensure UI is updated."""
-            if not state.get("current_project"):
-                return [], [], [], NO_SCOPE
-            
-            project_path = state["current_project"].metadata.path
-            
-            # Get fresh document list and scope
-            doc_names, doc_rows, scope = get_document_list(project_path)
-            
-            # Clean scope to ensure proper format
-            clean_scope = clean_document_selection(scope)
-            
-            # Update scope text
-            scope_text = format_scope_text(clean_scope)
-            
-            # Return values for UI update
-            return doc_names, clean_scope, doc_rows, scope_text
-        
-        def handle_document_selection(evt: gr.SelectData):
-            """Handle document selection from the list."""
-            if not state.get("current_project"):
-                return "", NO_DOCUMENT_SELECTED, NO_DOCUMENT_CONTENT, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
-            
-            # Get the selected document name
-            doc_name = evt.value
-            if not doc_name:
-                return "", NO_DOCUMENT_SELECTED, NO_DOCUMENT_CONTENT, gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
-            
-            project_path = state["current_project"].metadata.path
-            
-            # Update current document in state
-            document_state["current_document"] = doc_name
-            document_state["editing"] = False
-            
-            # Get document content
-            content = get_document_content(project_path, doc_name)
-            
-            # Check if document has changed
-            has_changed = has_document_changed(project_path, doc_name)
-            
-            # Update heading
-            heading = f"### 📝 {doc_name}"
-            
-            return (
-                doc_name,                         # Current document name
-                heading,                          # Document heading
-                content,                          # Document content
-                gr.update(visible=has_changed),   # Show change warning
-                gr.update(visible=True),          # Show edit button
-                gr.update(visible=False),         # Hide save button
-                gr.update(visible=False),         # Hide cancel button
-                gr.update(visible=True)           # Show analyze button
-            )
-        
-        def update_scope_selection(selected_docs):
-            """Update scope when selection changes."""
-            if not state.get("current_project"):
-                return NO_SCOPE
-            
-            # Clean the selection
-            clean_selected_docs = clean_document_selection(selected_docs)
-            
-            project_path = state["current_project"].metadata.path
-            
-            # Update state and save to file
-            document_state["scope"] = clean_selected_docs
-            update_scope(project_path, clean_selected_docs)
-            
-            # Update scope display
-            scope_text = format_scope_text(clean_selected_docs)
-            
-            return scope_text
-        
-        def enable_editing():
-            """Enable document editing mode."""
-            return (
-                gr.update(visible=False),  # Hide document display
-                gr.update(visible=True),   # Show document editor
-                gr.update(visible=False),  # Hide edit button
-                gr.update(visible=True),   # Show save button
-                gr.update(visible=True),   # Show cancel button
-                gr.update(visible=False)   # Hide analyze button
-            )
-        
-        def save_document(doc_name, content):
-            """Save document and update UI."""
-            if not state.get("current_project") or not doc_name:
-                return gr.update(visible=True), gr.update(visible=True), gr.update(visible=False), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
-            
-            project_path = state["current_project"].metadata.path
-            
-            # Save the document
-            success = save_document_content(project_path, doc_name, content)
-            
-            # Update state
-            document_state["editing"] = False
-            
-            # Document has definitely changed since we just saved it
-            return (
-                gr.update(visible=False),    # Hide status
-                gr.update(visible=True),     # Show document display
-                gr.update(visible=False),    # Hide document editor
-                gr.update(visible=True),     # Show edit button
-                gr.update(visible=False),    # Hide save button
-                gr.update(visible=False),    # Hide cancel button
-                gr.update(visible=True),     # Show change warning
-                gr.update(visible=True)      # Show analyze button
-            )
-        
-        def cancel_editing(doc_name):
-            """Cancel editing and restore original content."""
-            document_state["editing"] = False
-            
-            if not state.get("current_project") or not doc_name:
-                return gr.update(visible=True), gr.update(visible=False), gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), "", gr.update(visible=True)
-            
-            project_path = state["current_project"].metadata.path
-            
-            # Reload document content
-            content = get_document_content(project_path, doc_name)
-            
-            return (
-                gr.update(visible=True),   # Show document display
-                gr.update(visible=False),  # Hide document editor
-                gr.update(visible=True),   # Show edit button
-                gr.update(visible=False),  # Hide save button
-                gr.update(visible=False),  # Hide cancel button
-                content,                   # Original content for the editor
-                gr.update(visible=True)    # Show analyze button
-            )
-
-        def create_new_document():
-            """Create a new document with unique name and update scope selection properly."""
-            if not state.get("current_project"):
-                return [], [], []
-
-            project_path = state["current_project"].metadata.path
-
-            # Generate a unique document name
-            base_name = "new_architecture"
-            doc_name = base_name
-            count = 1
-
-            # Get existing document names
-            doc_names, _, _ = get_document_list(project_path)
-
-            while doc_name in doc_names:
-                doc_name = f"{base_name}_{count}"
-                count += 1
-
-            # Create default content
-            content = create_default_document_content(doc_name)
-
-            # Save the document
-            success = save_document_content(project_path, doc_name, content)
-
-            # Get updated document list
-            doc_names, doc_rows, scope = get_document_list(project_path)
-
-            # Add the new document to the scope
-            if success and doc_name not in scope:
-                scope.append(doc_name)
-                update_scope(project_path, scope)
-
-            return doc_names, scope, doc_rows
-        
-        def process_uploaded_file(file_info):
-            """Process uploaded document file."""
-            if not state.get("current_project"):
-                return [], [], []
-                
-            if file_info is None:
-                return [], [], []
-            
-            # For UploadButton, file_info is always a file object
-            file_path = file_info.name if hasattr(file_info, 'name') else None
-                
-            if not file_path or not os.path.exists(file_path):
-                return [], [], []
-            
-            project_path = state["current_project"].metadata.path
-            
-            # Extract filename without extension
-            filename = os.path.basename(file_path)
-            doc_name = os.path.splitext(filename)[0]
-            
-            # Read file content
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-            except Exception as e:
-                print(ERROR_READING_FILE.format(error=e))
-                return [], [], []
-            
-            # Save as document
-            save_document_content(project_path, doc_name, content)
-            
-            # Get updated document list
-            doc_names, doc_rows, scope = get_document_list(project_path)
-            
-            return doc_names, scope, doc_rows
-
-        def delete_selected_documents(selected_docs):
-            """Delete selected documents in a non-blocking way."""
-            if not state.get("current_project"):
-                return [], [], []
-
-            # Clean the selection
-            clean_selected_docs = clean_document_selection(selected_docs)
-
-            if not clean_selected_docs:
-                return [], [], []
-
-            project_path = state["current_project"].metadata.path
-
-            # Get current scope before deletion
-            scope_path = os.path.join(project_path, config.ARCHITECTURE_SCOPE_FILE)
-            current_scope = []
-            if os.path.exists(scope_path):
-                try:
-                    with open(scope_path, 'r') as f:
-                        scope_data = json.load(f)
-                        current_scope = scope_data.get('documents', [])
-                except Exception as e:
-                    print(f"Error loading scope: {e}")
-
-            # Simplified deletion process to prevent blocking
-            for doc_name in clean_selected_docs:
-                try:
-                    # Delete the document files without complex error handling to reduce blocking
-                    json_path = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR, f"{doc_name}.json")
-                    md_path = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR, f"{doc_name}.md")
-
-                    # Simple file deletion with minimal error handling
-                    if os.path.exists(json_path):
-                        os.remove(json_path)
-
-                    if os.path.exists(md_path):
-                        os.remove(md_path)
-
-                    # Delete any associated diagram files (simplified)
-                    diagrams_dir = os.path.join(project_path, config.ARCHITECTURE_DIAGRAMS_DIR)
-                    if os.path.exists(diagrams_dir):
-                        for filename in os.listdir(diagrams_dir):
-                            if filename.startswith(f"{doc_name}_"):
-                                try:
-                                    os.remove(os.path.join(diagrams_dir, filename))
-                                except:
-                                    pass
-
-                    # Delete analysis file (simplified)
-                    analysis_path = os.path.join(project_path, config.ARCHITECTURE_ANALYSIS_DIR, f"{doc_name}.json")
-                    if os.path.exists(analysis_path):
-                        try:
-                            os.remove(analysis_path)
-                        except:
-                            pass
-                except Exception as e:
-                    print(ERROR_DELETING_DOCUMENT.format(path=doc_name, error=e))
-
-            # Get updated document list
-            doc_names, doc_rows, _ = get_document_list(project_path)
-
-            # Update scope to remove deleted documents
-            updated_scope = [doc for doc in current_scope if doc in doc_names]
-            update_scope(project_path, updated_scope)
-
-            return doc_names, updated_scope, doc_rows
-
-        def generate_diagrams(doc_name):
-            """Generate diagrams for a document, ensuring re-generation on repeated clicks."""
-            if not state.get("current_project") or not doc_name:
-                return gr.update(visible=False)
-
-            project_path = state["current_project"].metadata.path
-
-            # Get document content
-            content = get_document_content(project_path, doc_name)
-            if not content:
-                return gr.update(visible=False)
-
-            # Force diagram regeneration by clearing cache first
-            cache_key = f"architecture_{doc_name}"
-            AnalysisCache.invalidate_cache(project_path, cache_key)
-
-            # Generate diagrams via controller
-            try:
-                diagrams = ArchitectureController.generate_diagrams(project_path, doc_name, content)
-
-                if diagrams:
-                    print(f"Successfully generated {len(diagrams)} diagrams for {doc_name}")
-                    for diagram_type, diagram in diagrams.items():
-                        print(f"Generated {diagram_type} diagram of length: {len(diagram.content) if diagram and hasattr(diagram, 'content') else 0}")
-
-                return gr.update(visible=False)
-            except Exception as e:
-                print(ERROR_GENERATING_DIAGRAMS.format(error=e))
-                import traceback
-                traceback.print_exc()
-                return gr.update(visible=False)
-
-        def analyze_document(doc_name):
-            """Analyze architecture document with enhanced critical focus, without generating diagrams."""
-            if not state.get("current_project") or not doc_name:
-                # Set loading state
-                return EMPTY_DOCUMENT_ERROR, gr.update(visible=False), [], []
-            
-            project_path = state["current_project"].metadata.path
-            
-            # Get document content
-            content = get_document_content(project_path, doc_name)
-            if not content or content.strip() == "":
-                return EMPTY_DOCUMENT_ERROR, gr.update(visible=False), [], []
-            
-            # Force re-analysis by clearing cache first
-            cache_key = f"architecture_{doc_name}"
-            AnalysisCache.invalidate_cache(project_path, f"{cache_key}_analysis")
-            
-            # Analyze document via controller
-            try:
-                # Add critical analysis focus by appending to content
-                enhanced_content = content + ANALYSIS_FOCUS_APPENDIX
-                
-                analysis = ArchitectureController.analyze_architecture_document(project_path, doc_name, enhanced_content)
-                if not analysis:
-                    return ANALYSIS_FAILED, gr.update(visible=False), [], []
-            except Exception as e:
-                return ERROR_ANALYZING_DOCUMENT.format(error=e), gr.update(visible=False), [], []
-            
-            # Get components and relationships
-            try:
-                data = ArchitectureController.get_components_and_relationships(project_path, doc_name)
-                
-                components = data.get("components", [])
-                relationships = data.get("relationships", [])
-                
-                # Format for the UI
-                components_data = [[c.get("name", ""), c.get("description", "")] for c in components]
-                relationships_data = [[r.get("source", ""), r.get("type", "").replace("_", " "), r.get("target", "")] for r in relationships]
-            except Exception as e:
-                print(f"Error getting components and relationships: {e}")
-                components_data = []
-                relationships_data = []
-            
-            # Make sure we return a string, not a boolean
-            if isinstance(analysis, bool):
-                analysis = "Analysis completed" if analysis else "Analysis failed"
-                
-            return analysis, gr.update(visible=False), components_data, relationships_data
-        
-        def reset_document_view():
-            """Reset the document view when no document is selected."""
-            return (
-                "",                          # Clear current document
-                NO_DOCUMENT_SELECTED,        # Reset heading
-                NO_DOCUMENT_CONTENT,         # Reset content
-                gr.update(visible=False),    # Hide change warning
-                gr.update(visible=False),    # Hide edit button
-                gr.update(visible=False),    # Hide save button
-                gr.update(visible=False),    # Hide cancel button
-                gr.update(visible=False),    # Hide analyze button
-                gr.update(visible=False),    # Hide generate diagrams button
-                gr.update(visible=False)     # Hide analyze button in analysis tab
-            )
-        
-        def update_diagram_view(doc_name, diagram_type):
-            """Update diagram view with selected document and diagram type."""
-            if not doc_name:
-                return NO_DOCUMENT_FIRST
-                
-            if not state.get("current_project"):
-                return NO_PROJECT_OPEN
-                
-            project_path = state["current_project"].metadata.path
-            return display_diagram(project_path, doc_name, diagram_type)
-            
         # ----- EVENT HANDLERS -----
+        
+        # Run initialization with a slight delay to ensure UI is ready
+        def delayed_init():
+            import time
+            print("Starting delayed initialization")
+            time.sleep(0.5)  # Short delay to let the UI render
+            handlers.init_tab_data()
+            print("Delayed initialization complete")
+            
+        import threading
+        threading.Thread(target=delayed_init).start()
         
         # Document list selection for scope
         document_list.change(
-            update_scope_selection,
+            handlers.update_scope_selection,
             inputs=[document_list],
-            outputs=[scope_display]
+            outputs=[scope_display, document_list]
         )
         
         # Document selection from dataframe
-        def on_document_select(evt: gr.SelectData):
-            """Handle document selection from the details dataframe, refreshing all tabs."""
-            if not state.get("current_project"):
-                return reset_document_view() + (NO_DOCUMENT_FIRST, NO_ANALYSIS_SELECTED, [], [])
-
-            # Get the selected document name directly from the row data
-            try:
-                # Try to get document name from the row clicked in dataframe
-                doc_name = evt.row_value[0]
-
-                print(f"Selected document: {doc_name}")
-
-                if not doc_name:
-                    return reset_document_view() + (NO_DOCUMENT_FIRST, NO_ANALYSIS_SELECTED, [], [])
-
-                project_path = state["current_project"].metadata.path
-
-                # Update current document in state
-                document_state["current_document"] = doc_name
-                document_state["editing"] = False
-
-                # Get document content
-                content = get_document_content(project_path, doc_name)
-
-                print(f"Document content length: {len(content) if content else 0}")
-
-                # Check if document has changed
-                has_changed = has_document_changed(project_path, doc_name)
-
-                # Update heading
-                heading = f"### 📝 {doc_name}"
-
-                # Generate diagram HTML for selected diagram type
-                diagram_html = display_diagram(project_path, doc_name, diagram_type.value)
-
-                # Get analysis if it exists
-                analysis_content = NO_ANALYSIS_SELECTED
-                components_data = []
-                relationships_data = []
-
-                # Load existing analysis if available
-                analysis_path = os.path.join(project_path, config.ARCHITECTURE_ANALYSIS_DIR, f"{doc_name}.json")
-                if os.path.exists(analysis_path):
-                    try:
-                        with open(analysis_path, 'r') as f:
-                            analysis_data = json.load(f)
-                            if 'content' in analysis_data:
-                                analysis_content = analysis_data['content']
-
-                        # Also try to load components and relationships
-                        data = ArchitectureController.get_components_and_relationships(project_path, doc_name)
-                        components = data.get("components", [])
-                        relationships = data.get("relationships", [])
-
-                        # Format for the UI
-                        components_data = [[c.get("name", ""), c.get("description", "")] for c in components]
-                        relationships_data = [[r.get("source", ""), r.get("type", "").replace("_", " "), r.get("target", "")] for r in relationships]
-                    except Exception as e:
-                        print(ERROR_LOADING_ANALYSIS.format(error=e))
-
-                return (
-                    doc_name,                       # Current document name
-                    heading,                        # Document heading
-                    content,                        # Document content
-                    gr.update(visible=has_changed), # Show change warning based on status
-                    gr.update(visible=True),        # Show edit button
-                    gr.update(visible=False),       # Hide save button
-                    gr.update(visible=False),       # Hide cancel button
-                    gr.update(visible=True),        # Show analyze button
-                    gr.update(visible=True),        # Show generate diagrams button
-                    diagram_html,                   # Update diagram viewer
-                    gr.update(visible=True),        # Show analyze button in analysis tab
-                    analysis_content,               # Analysis content
-                    components_data,                # Components table data
-                    relationships_data              # Relationships table data
-                )
-            except Exception as e:
-                print(ERROR_DOCUMENT_SELECTION.format(error=e))
-                import traceback
-                traceback.print_exc()
-                return reset_document_view() + (NO_DOCUMENT_FIRST, NO_ANALYSIS_SELECTED, [], [])
-            
-        # Use proper select event handling
+        # Document selection from dataframe
         document_details.select(
-            on_document_select,  # Function that receives the event 
+            handlers.on_document_select,
             outputs=[
                 current_doc_name,
                 document_heading,
@@ -738,15 +275,16 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 generate_diagrams_btn,
                 diagram_viewer,
                 analyze_tab_btn,
-                analysis_result,       # Added for tab synchronization
-                components_table,      # Added for tab synchronization
-                relationships_table    # Added for tab synchronization
+                analysis_result,
+                components_table,
+                relationships_table,
+                diagram_type  # Add this line
             ]
         )
         
         # Edit button
         edit_btn.click(
-            enable_editing,
+            handlers.enable_editing,
             inputs=None,
             outputs=[
                 document_display,
@@ -754,41 +292,37 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 edit_btn,
                 save_btn,
                 cancel_btn,
-                analyze_btn  # Add this to hide analyze button
+                analyze_btn  
             ]
         ).then(
-            lambda doc_name: get_document_content_safe(state, doc_name),  # Use safe function
+            handlers.get_document_content_for_edit,
             inputs=[current_doc_name],
             outputs=[document_editor]
         )
         
         # Save button
         save_btn.click(
-            save_document,
+            handlers.save_document,
             inputs=[current_doc_name, document_editor],
             outputs=[
-                status_msg,         # visibility
+                status_msg,         
                 document_display,
                 document_editor,
                 edit_btn,
                 save_btn,
                 cancel_btn,
                 change_warning,
-                analyze_btn         # Add this to show analyze button again
+                analyze_btn         
             ]
         ).then(
-            lambda doc_name: get_document_content_safe(state, doc_name),  # Use safe function
+            handlers.get_document_content_for_display,
             inputs=[current_doc_name],
             outputs=[document_display]
-        ).then(
-            load_documents,
-            inputs=None,
-            outputs=[document_list, document_list, document_details, scope_display]
         )
         
         # Cancel button
         cancel_btn.click(
-            cancel_editing,
+            handlers.cancel_editing,
             inputs=[current_doc_name],
             outputs=[
                 document_display,
@@ -797,52 +331,55 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 save_btn,
                 cancel_btn,
                 document_editor,
-                analyze_btn  # Add this to show analyze button again
+                analyze_btn  
             ]
         )
         
-        # New document button - Fixed scope update
+        # New document button
         new_doc_btn.click(
-            create_new_document,
+            handlers.create_new_document,
             inputs=None,
             outputs=[document_list, document_list, document_details]
         ).then(
-            # Explicitly update scope display
-            ensure_scope_ui_update,
-            inputs=None,
-            outputs=[document_list, document_list, document_details, scope_display]
+            handlers.update_document_list_ui,
+            inputs=[document_list, document_list, document_details],
+            outputs=[document_list, scope_display]
         )
         
-        # Upload document button - Fixed scope update
+        # Upload document button
         upload_doc_btn.upload(
-            process_uploaded_file,
+            handlers.process_uploaded_file,
             inputs=[upload_doc_btn],
             outputs=[document_list, document_list, document_details]
         ).then(
-            # Explicitly update scope display
-            ensure_scope_ui_update,
-            inputs=None,
-            outputs=[document_list, document_list, document_details, scope_display]
+            handlers.update_document_list_ui,
+            inputs=[document_list, document_list, document_details],
+            outputs=[document_list, scope_display]
         )
-        
-        # Delete selected button - Fixed scope update and UI freezing
+
+        def get_selected_documents(handler_instance):
+            """Helper function to get only the selected documents."""
+            selected_docs = handler_instance.components["document_list"].value
+            if not isinstance(selected_docs, list):
+                selected_docs = [selected_docs] if selected_docs else []
+            return selected_docs
+
+        # Update the delete_selected_btn.click to use this helper
         delete_selected_btn.click(
-            delete_selected_documents,
-            inputs=[document_list],
-            outputs=[document_list, document_list, document_details]
+            # First capture the current selection
+            lambda: gr.update(interactive=False),  # Temporarily disable the button during deletion
+            inputs=None,
+            outputs=delete_selected_btn
         ).then(
-            # Use simple function for document view reset
-            lambda: (
-                "",                          # Clear current document name
-                NO_DOCUMENT_SELECTED,        # Reset heading
-                NO_DOCUMENT_CONTENT,         # Reset content
-                gr.update(visible=False),    # Hide change warning
-                gr.update(visible=False),    # Hide edit button
-                gr.update(visible=False),    # Hide save button
-                gr.update(visible=False),    # Hide cancel button
-                gr.update(visible=False),    # Hide analyze button
-                gr.update(visible=False)     # Hide generate diagrams button
-            ),
+            # This function will directly handle deletion
+            lambda selected_docs, project_state: handlers.direct_delete_documents(selected_docs, project_state),
+            # Pass the current selection and project state
+            inputs=[document_list, gr.State(lambda: state)],
+            # Return the updated document list, scope, and details
+            outputs=[document_list, document_list, document_details, scope_display]
+        ).then(
+            # Reset document view if needed
+            handlers.reset_document_view,
             inputs=None,
             outputs=[
                 current_doc_name,
@@ -856,14 +393,8 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 generate_diagrams_btn
             ]
         ).then(
-            # Use simple function for diagram and analysis reset
-            lambda: (
-                NO_DIAGRAM_SELECTED,         # Reset diagram viewer
-                gr.update(visible=False),    # Hide analyze button in analysis tab
-                NO_ANALYSIS_SELECTED,        # Reset analysis
-                [],                          # Clear components table
-                []                           # Clear relationships table
-            ),
+            # Reset diagram and analysis views
+            handlers.reset_diagram_analysis_view,
             inputs=None,
             outputs=[
                 diagram_viewer,
@@ -873,43 +404,37 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 relationships_table
             ]
         ).then(
-            # Explicitly update scope display
-            ensure_scope_ui_update,
+            # Re-enable the delete button
+            lambda: gr.update(interactive=True),
             inputs=None,
-            outputs=[document_list, document_list, document_details, scope_display]
+            outputs=delete_selected_btn
         )
-        
+
         # Diagram type change
         diagram_type.change(
-            update_diagram_view,
+            handlers.update_diagram_view,
             inputs=[current_doc_name, diagram_type],
             outputs=[diagram_viewer]
         )
         
-        # Generate diagrams button - Added loading state
+        # Generate diagrams button
         generate_diagrams_btn.click(
-            # First show loading state
-            lambda: GENERATING_DIAGRAMS,
+            handlers.show_generating_diagrams,
             inputs=None,
             outputs=[diagram_viewer]
         ).then(
-            generate_diagrams,
+            handlers.generate_diagrams,
             inputs=[current_doc_name],
-            outputs=[diagram_status]
+            outputs=[diagram_status, diagram_type]  # Add diagram_type to outputs
         ).then(
-            update_diagram_view,
+            handlers.update_diagram_view,
             inputs=[current_doc_name, diagram_type],
             outputs=[diagram_viewer]
-        ).then(
-            load_documents,
-            inputs=None,
-            outputs=[document_list, document_list, document_details, scope_display]
         )
         
-        # Analyze button in document tab - Added loading state, removed diagram generation
+        # Analyze button in document tab
         analyze_btn.click(
-            # First show loading state
-            lambda: (ANALYSIS_LOADING, gr.update(visible=False), [], []),
+            handlers.show_analysis_loading,
             inputs=None,
             outputs=[
                 analysis_result,
@@ -918,7 +443,7 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 relationships_table
             ]
         ).then(
-            analyze_document,
+            handlers.analyze_document,
             inputs=[current_doc_name],
             outputs=[
                 analysis_result,
@@ -927,19 +452,14 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 relationships_table
             ]
         ).then(
-            lambda: 2,  # Switch to analysis tab (index 2)
+            handlers.switch_to_analysis_tab,
             inputs=None,
-            outputs=document_tabs
-        ).then(
-            load_documents,
-            inputs=None,
-            outputs=[document_list, document_list, document_details, scope_display]
+            outputs=[document_tabs]
         )
         
-        # Analyze button in analysis tab - Added loading state, removed diagram generation
+        # Analyze button in analysis tab
         analyze_tab_btn.click(
-            # First show loading state
-            lambda: (ANALYSIS_LOADING, gr.update(visible=False), [], []),
+            handlers.show_analysis_loading,
             inputs=None,
             outputs=[
                 analysis_result,
@@ -948,7 +468,7 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 relationships_table
             ]
         ).then(
-            analyze_document,
+            handlers.analyze_document,
             inputs=[current_doc_name],
             outputs=[
                 analysis_result,
@@ -956,36 +476,16 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 components_table,
                 relationships_table
             ]
-        ).then(
-            load_documents,
-            inputs=None,
-            outputs=[document_list, document_list, document_details, scope_display]
         )
         
-        # When the Architecture tab is clicked - Explicit UI refresh
+        # Tab selection event
         architecture_tab.select(
-            # Explicit call to reload everything
-            ensure_scope_ui_update,
+            handlers.load_documents,  # This now preserves selection and returns both doc_names and preserved selection
             inputs=None,
             outputs=[document_list, document_list, document_details, scope_display]
         ).then(
             # Reset document view
-            lambda: (
-                "",                          # Clear current document name
-                NO_DOCUMENT_SELECTED,        # Reset heading
-                NO_DOCUMENT_CONTENT,         # Reset content
-                gr.update(visible=False),    # Hide change warning
-                gr.update(visible=False),    # Hide edit button
-                gr.update(visible=False),    # Hide save button
-                gr.update(visible=False),    # Hide cancel button
-                gr.update(visible=False),    # Hide analyze button
-                gr.update(visible=False),    # Hide generate diagrams button
-                NO_DIAGRAM_SELECTED,         # Reset diagram viewer
-                gr.update(visible=False),    # Hide analyze button in analysis tab
-                NO_ANALYSIS_SELECTED,        # Reset analysis
-                [],                          # Clear components table
-                []                           # Clear relationships table
-            ),
+            handlers.reset_document_view,
             inputs=None,
             outputs=[
                 current_doc_name,
@@ -996,7 +496,13 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 save_btn,
                 cancel_btn,
                 analyze_btn,
-                generate_diagrams_btn,
+                generate_diagrams_btn
+            ]
+        ).then(
+            # Reset diagram and analysis view
+            handlers.reset_diagram_analysis_view,
+            inputs=None,
+            outputs=[
                 diagram_viewer,
                 analyze_tab_btn,
                 analysis_result,
@@ -1005,13 +511,7 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
             ]
         )
         
-        # Initialize data when tab is loaded
-        def init_tab_data():
-            # Perform initial document loading
-            load_documents()
-        
-        # Call init function when the tab is created
-        init_tab_data()
+        # Tab data will be initialized by the delayed initialization thread
         
     # Return the tab to be added to the main UI
     return architecture_tab

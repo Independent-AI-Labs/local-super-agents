@@ -6,18 +6,15 @@ Contains all strings, prompts, and messages used in the architecture UI.
 # UI Labels and Titles
 TAB_TITLE = "🏗️ Architecture & Scope"
 TAB_DESCRIPTION = """
-# 🏗️ Software Architecture & Scope
+# 🏗️ Software Architecture & Analysis Scope
 
-Define your software architecture before implementation and select which 
-architecture documents are part of your current scope. This helps enforce
-proper software engineering practices and provides a clear blueprint for 
-your development.
+Define this project's software architecture and select which design documents are part of the current scope.
 """
 
-DOCUMENTS_HEADER = "### 📚 Architecture Documents"
-DOCUMENT_LABEL = "Documents"
-DOCUMENT_INFO = "Select documents to include in project scope"
-DOCUMENT_HEADERS = ["📋 Document", "📅 Modified", "🔍 Status"]
+DOCUMENTS_HEADER = "### 📚 Design Documents"
+DOCUMENT_LABEL = "Scope"
+DOCUMENT_INFO = "Select documents to include in the scope"
+DOCUMENT_HEADERS = ["📋 Title", "🔍 Status"]
 UPLOAD_INFO = "*Supports .json, .yaml, .xml, .txt, .md*"
 
 # Button Labels
@@ -59,7 +56,7 @@ NO_DOCUMENT_FIRST = "<p>Select a document first</p>"
 EMPTY_DOCUMENT_ERROR = "⚠️ Document is empty or could not be loaded."
 ANALYSIS_FAILED = "❌ Analysis failed. Try again or check document content."
 ANALYSIS_LOADING = "Performing critical analysis..."
-GENERATING_DIAGRAMS = "<p>Generating diagrams... please wait</p>"
+GENERATING_DIAGRAMS = "<p>Generating diagrams...</p>"
 NO_SCOPE = "🔍 **Current Scope:** No documents selected"
 SCOPE_ERROR = "🔍 **Current Scope:** Error loading documents"
 

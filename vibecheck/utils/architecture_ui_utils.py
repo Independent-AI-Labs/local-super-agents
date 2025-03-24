@@ -19,98 +19,71 @@ from vibecheck.utils.file_utils import ensure_directory
 
 def get_document_list(project_path: str) -> Tuple[List[str], List[List[Any]], List[str]]:
     """
-    Get unique list of documents with their metadata.
-    
+    Get unique list of ALL documents with their metadata.
+
     Args:
         project_path: Path to the project
-        
+
     Returns:
         Tuple of (doc_names, doc_rows, scope)
     """
-    if not os.path.exists(project_path):
-        return [], [], []
-
+    # Ensure architecture documents directory exists
     docs_dir = os.path.join(project_path, config.ARCHITECTURE_DOCS_DIR)
-    if not os.path.exists(docs_dir):
-        ensure_directory(docs_dir)
-        return [], [], []
+    ensure_directory(docs_dir)
 
-    # Track unique document names to avoid duplication
-    unique_docs = {}
-
-    for filename in os.listdir(docs_dir):
-        # Only process supported file types
-        if not filename.endswith(('.json', '.md', '.txt', '.yaml', '.xml')):
-            continue
-
-        file_path = os.path.join(docs_dir, filename)
-        doc_name = os.path.splitext(filename)[0]
-
-        # Skip if we've already processed this document
-        if doc_name in unique_docs:
-            continue
-
-        # Get document metadata
-        mod_time = os.path.getmtime(file_path)
-        mod_date = datetime.fromtimestamp(mod_time)
-
-        # Check if the document has been analyzed
-        analysis_path = os.path.join(project_path, config.ARCHITECTURE_ANALYSIS_DIR, f"{doc_name}.json")
-        has_been_analyzed = os.path.exists(analysis_path)
-
-        # Check if the document has changed since last analysis
-        has_changed = False
-        if has_been_analyzed:
-            analysis_time = os.path.getmtime(analysis_path)
-            has_changed = mod_time > analysis_time
-
-        # Add to our unique documents dictionary
-        unique_docs[doc_name] = {
-            "name": doc_name,
-            "last_modified": mod_date,
-            "has_been_analyzed": has_been_analyzed,
-            "has_changed": has_changed
-        }
-
-    # Get current scope - get only document names, not full rows
-    scope_path = os.path.join(project_path, config.ARCHITECTURE_SCOPE_FILE)
-    scope = []
-    if os.path.exists(scope_path):
-        try:
-            with open(scope_path, 'r') as f:
-                scope_data = json.load(f)
-                raw_scope = scope_data.get('documents', [])
-                # Clean up the scope to ensure it only contains document names
-                for item in raw_scope:
-                    if isinstance(item, list) and len(item) > 0:
-                        scope.append(str(item[0]))
-                    elif item:
-                        scope.append(str(item))
-        except Exception as e:
-            print(f"Error loading scope: {e}")
-
-    # Format for UI components - just doc names
-    doc_names = list(unique_docs.keys())
-
-    # Format for details table
+    # Find ALL documents in the directory
+    all_doc_names = []
     doc_rows = []
-    for doc_name, doc_info in unique_docs.items():
-        # Status column
-        status = ""
-        if doc_info["has_changed"]:
-            status = "🔄 Changed"
-        elif not doc_info["has_been_analyzed"]:
-            status = "⚠️ Not analyzed"
-        else:
-            status = "✅ Up to date"
 
-        doc_rows.append([
-            doc_name,
-            doc_info["last_modified"].strftime("%Y-%m-%d %H:%M"),
-            status
-        ])
+    if os.path.exists(docs_dir):
+        for filename in os.listdir(docs_dir):
+            if filename.endswith(('.json', '.md', '.txt', '.yaml', '.xml')):
+                doc_name = os.path.splitext(filename)[0]
+                if doc_name not in all_doc_names:
+                    all_doc_names.append(doc_name)
 
-    return doc_names, doc_rows, scope
+                    # Check document status
+                    file_path = os.path.join(docs_dir, filename)
+                    mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                    status = f"{mod_time.strftime('%Y-%m-%d %H:%M')}"
+
+                    # Check if the document has been analyzed
+                    analysis_path = os.path.join(project_path, config.ARCHITECTURE_ANALYSIS_DIR, f"{doc_name}.json")
+                    if os.path.exists(analysis_path):
+                        analysis_time = datetime.fromtimestamp(os.path.getmtime(analysis_path))
+                        analysis_status = f"Analyzed {analysis_time.strftime('%Y-%m-%d %H:%M')}"
+
+                        # Check if document was modified after analysis
+                        if os.path.getmtime(file_path) > os.path.getmtime(analysis_path):
+                            analysis_status += " ⚠️"
+                    else:
+                        analysis_status = "Not Analyzed"
+
+                    doc_rows.append([doc_name, analysis_status])
+
+    # Try to load existing scope
+    scope_path = os.path.join(project_path, config.ARCHITECTURE_SCOPE_FILE)
+    try:
+        with open(scope_path, 'r') as f:
+            scope_data = json.load(f)
+            existing_scope = scope_data.get('documents', [])
+    except (FileNotFoundError, json.JSONDecodeError):
+        existing_scope = []
+
+    # Validate scope against existing documents
+    valid_scope = [doc for doc in existing_scope if doc in all_doc_names]
+
+    # Update scope file to match current state
+    try:
+        with open(scope_path, 'w') as f:
+            json.dump({
+                'documents': valid_scope,
+                'last_updated': datetime.now().isoformat()
+            }, f, indent=2)
+    except Exception as e:
+        print(f"Error updating scope file: {e}")
+
+    return all_doc_names, doc_rows, valid_scope
 
 
 def get_document_content(project_path: str, doc_name: str) -> str:
@@ -386,29 +359,49 @@ Describe your system here...
 """
 
 
-def clean_document_selection(selected_docs: List) -> List[str]:
+def clean_document_selection(selected_docs):
     """
     Clean document selection to ensure proper format.
-    
+
     Args:
         selected_docs: List of selected documents (potentially mixed formats)
-        
+
     Returns:
         Cleaned list of document names as strings
     """
-    if not isinstance(selected_docs, list):
-        selected_docs = [str(selected_docs)] if selected_docs else []
+    # Handle None or empty input
+    if not selected_docs:
+        return []
 
-    # Convert any non-string elements to strings and filter out empty values
+    # If not a list, convert to a list with the single item
+    if not isinstance(selected_docs, list):
+        if selected_docs:
+            return [str(selected_docs)]
+        else:
+            return []
+
+    # Process each item in the list
     clean_selected_docs = []
     for doc in selected_docs:
-        if isinstance(doc, list) and len(doc) > 0:
-            # Handle case where we get rows instead of document names
-            clean_selected_docs.append(str(doc[0]))
-        elif doc:
+        # Skip empty entries
+        if not doc:
+            continue
+
+        # Handle lists (like row values from dataframe)
+        if isinstance(doc, list):
+            if doc and doc[0]:  # Check if list has at least one non-empty item
+                clean_selected_docs.append(str(doc[0]))
+        else:
+            # Convert to string for consistency
             clean_selected_docs.append(str(doc))
 
-    return clean_selected_docs
+    # Remove any duplicates while maintaining order
+    unique_docs = []
+    for doc in clean_selected_docs:
+        if doc not in unique_docs:
+            unique_docs.append(doc)
+
+    return unique_docs
 
 
 def format_scope_text(scope: List[str]) -> str:

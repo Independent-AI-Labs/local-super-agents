@@ -36,8 +36,7 @@ def create_welcome_tab() -> Tuple[gr.Tab, Dict]:
             """
             # ✨ VibeCheck ✨
 
-            VibeCheck helps you manage your software projects by enforcing proper software
-            engineering practices, even when using Large Language Models (LLMs) to generate code.
+            VibeCheck is an automated code analysis tool that *helps* you to *adhere* to best software development and security practices.
             """
         )
 
@@ -96,7 +95,7 @@ def create_welcome_tab() -> Tuple[gr.Tab, Dict]:
                     # Project type tags
                     gr.Markdown("### 📦 Project Type")
                     project_type_tags = gr.Dataframe(
-                        headers=["📦 Project Type"],
+                        headers=["📦 Technologies & Frameworks"],
                         col_count=(1, "fixed"),
                         interactive=False,
                         value=[]
@@ -107,12 +106,10 @@ def create_welcome_tab() -> Tuple[gr.Tab, Dict]:
                         """
                         ### 🚀 Next Steps
                         
-                        After saving your project:
-                        
-                        - Click on the **Architecture** tab to design your software architecture
-                        - Use the **Environment** tab to configure your development environment
-                        - Track implementation progress in the **Implementation** tab
-                        - Run tests in the **Build & Test** tab
+                        - Click on the **Architecture & Scope** tab to explore the current solution.
+                        - Track implementation progress and code changes in the **Implementation** tab.
+                        - Use the **Environment** tab to configure your development & test environments.
+                        - Perform sanity checks and basic QA in the **Build & Test** tab.
                         """
                     )
 
