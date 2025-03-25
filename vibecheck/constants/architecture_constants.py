@@ -38,8 +38,7 @@ ANALYSIS_TAB = "🔍 Analysis"
 DIAGRAM_TYPES = [
     ("Module Diagram", "module"),
     ("Data Flow Diagram", "dataflow"),
-    ("Security Diagram", "security"),
-    ("Mermaid Diagram", "mermaid")
+    ("Security Diagram", "security")
 ]
 DIAGRAM_TYPE_LABEL = "📊 Diagram Type"
 
@@ -67,23 +66,6 @@ DOCUMENT_CHANGED_WARNING = """
 You should analyze it again to update diagrams and analysis.
 """
 
-# ===== Default Document Content =====
-DEFAULT_DOCUMENT_TEMPLATE = """# {doc_name}
-
-## System Overview
-
-Describe your system here...
-
-## Components
-
-- Component 1: Description of component 1
-- Component 2: Description of component 2
-
-## Relationships
-
-- Component 1 communicates with Component 2
-"""
-
 # ===== Error Messages =====
 ERROR_LOADING_DOCUMENTS = "Error loading documents: {error}"
 ERROR_READING_FILE = "Error reading file: {error}"
@@ -92,3 +74,4 @@ ERROR_DOCUMENT_SELECTION = "Error in document selection: {error}"
 ERROR_GENERATING_DIAGRAMS = "Error generating diagrams: {error}"
 ERROR_ANALYZING_DOCUMENT = "Error analyzing document: {error}"
 ERROR_LOADING_ANALYSIS = "Error loading existing analysis: {error}"
+

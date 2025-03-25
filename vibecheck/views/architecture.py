@@ -168,11 +168,12 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                             value=""  # Initialize with empty string
                         )
                         
-                        # Diagram display
+                        # Diagram display - use HTML component with proper styling for Mermaid rendering
                         diagram_viewer = gr.HTML(
                             label="Diagram",
                             elem_id="diagram-viewer",
-                            value=NO_DIAGRAM_SELECTED
+                            value=NO_DIAGRAM_SELECTED,
+                            show_label=False,  # Hide label for cleaner look
                         )
                     
                     # Analysis tab
@@ -260,7 +261,6 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
         )
         
         # Document selection from dataframe
-        # Document selection from dataframe
         document_details.select(
             handlers.on_document_select,
             outputs=[
@@ -278,7 +278,7 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
                 analysis_result,
                 components_table,
                 relationships_table,
-                diagram_type  # Add this line
+                diagram_type
             ]
         )
         
@@ -425,7 +425,7 @@ def create_architecture_tab(state: Dict) -> gr.Tab:
         ).then(
             handlers.generate_diagrams,
             inputs=[current_doc_name],
-            outputs=[diagram_status, diagram_type]  # Add diagram_type to outputs
+            outputs=[diagram_status, diagram_type]
         ).then(
             handlers.update_diagram_view,
             inputs=[current_doc_name, diagram_type],

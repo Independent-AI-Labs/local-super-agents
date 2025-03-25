@@ -14,6 +14,11 @@ import gradio as gr
 
 from vibecheck import config
 from vibecheck.constants.architecture_constants import *
+from vibecheck.constants.architecture_templates import (
+    GENERATING_DIAGRAMS_TEMPLATE,
+    NO_DIAGRAM_SELECTED_TEMPLATE,
+    NO_DOCUMENT_FIRST_TEMPLATE
+)
 from vibecheck.controllers.architecture_controller import ArchitectureController
 from vibecheck.utils.architecture_ui_utils import (
     get_document_list, get_document_content, get_document_content_safe,
@@ -278,10 +283,10 @@ class ArchitectureHandlers:
             diagrams_exist = False
             diagrams_dir = os.path.join(project_path, config.ARCHITECTURE_DIAGRAMS_DIR)
             if os.path.exists(diagrams_dir):
-                for diagram_type in ["module", "dataflow", "security", "mermaid"]:
+                for diagram_type in ["module", "dataflow", "security"]:
                     json_path = os.path.join(diagrams_dir, f"{doc_name}_{diagram_type}.json")
-                    svg_path = os.path.join(diagrams_dir, f"{doc_name}_{diagram_type}.svg")
-                    if os.path.exists(json_path) or os.path.exists(svg_path):
+                    mmd_path = os.path.join(diagrams_dir, f"{doc_name}_{diagram_type}.mmd")
+                    if os.path.exists(json_path) or os.path.exists(mmd_path):
                         diagrams_exist = True
                         break
 
@@ -684,7 +689,7 @@ class ArchitectureHandlers:
     def reset_diagram_analysis_view(self):
         """Reset the diagram and analysis views."""
         return (
-            NO_DIAGRAM_SELECTED,  # Reset diagram viewer
+            NO_DIAGRAM_SELECTED_TEMPLATE,  # Reset diagram viewer
             gr.update(visible=False),  # Hide analyze button in analysis tab
             NO_ANALYSIS_SELECTED,  # Reset analysis
             [],  # Clear components table
@@ -694,7 +699,7 @@ class ArchitectureHandlers:
     def update_diagram_view(self, doc_name, diagram_type):
         """Update diagram view with selected document and diagram type."""
         if not doc_name:
-            return NO_DOCUMENT_FIRST
+            return NO_DOCUMENT_FIRST_TEMPLATE
 
         if not self.state.get("current_project"):
             return NO_PROJECT_OPEN
@@ -722,9 +727,9 @@ class ArchitectureHandlers:
         # Delete any existing diagram files to force regeneration
         diagrams_dir = os.path.join(project_path, config.ARCHITECTURE_DIAGRAMS_DIR)
         if os.path.exists(diagrams_dir):
-            for diagram_type in ["module", "dataflow", "security", "mermaid"]:
+            for diagram_type in ["module", "dataflow", "security"]:
                 json_path = os.path.join(diagrams_dir, f"{doc_name}_{diagram_type}.json")
-                svg_path = os.path.join(diagrams_dir, f"{doc_name}_{diagram_type}.svg")
+                mmd_path = os.path.join(diagrams_dir, f"{doc_name}_{diagram_type}.mmd")
 
                 if os.path.exists(json_path):
                     try:
@@ -733,12 +738,12 @@ class ArchitectureHandlers:
                     except Exception as e:
                         print(f"Error deleting existing diagram: {e}")
 
-                if os.path.exists(svg_path):
+                if os.path.exists(mmd_path):
                     try:
-                        os.remove(svg_path)
-                        print(f"Deleted existing SVG for regeneration: {svg_path}")
+                        os.remove(mmd_path)
+                        print(f"Deleted existing Mermaid file for regeneration: {mmd_path}")
                     except Exception as e:
-                        print(f"Error deleting existing SVG: {e}")
+                        print(f"Error deleting existing Mermaid file: {e}")
 
         # Generate diagrams via controller
         try:
@@ -761,7 +766,7 @@ class ArchitectureHandlers:
 
     def show_generating_diagrams(self):
         """Show loading state for diagram generation."""
-        return GENERATING_DIAGRAMS
+        return GENERATING_DIAGRAMS_TEMPLATE
 
     def analyze_document(self, doc_name):
         """Analyze architecture document with enhanced critical focus and force regeneration."""
@@ -792,10 +797,7 @@ class ArchitectureHandlers:
 
         # Analyze document via controller
         try:
-            # Add critical analysis focus by appending to content
-            enhanced_content = content + ANALYSIS_FOCUS_APPENDIX
-
-            analysis = ArchitectureController.analyze_architecture_document(project_path, doc_name, enhanced_content)
+            analysis = ArchitectureController.analyze_architecture_document(project_path, doc_name, content)
             if not analysis:
                 print(f"Analysis failed for document: {doc_name}")
                 return ANALYSIS_FAILED, gr.update(visible=False), [], []

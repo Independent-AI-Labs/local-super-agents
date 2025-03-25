@@ -11,10 +11,10 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Any
 
 from vibecheck import config
+from vibecheck.constants.architecture_templates import NO_DOCUMENT_FIRST_TEMPLATE, DEFAULT_DOCUMENT_TEMPLATE
 from vibecheck.controllers.architecture_controller import ArchitectureController
 from vibecheck.utils.file_utils import ensure_directory
 from vibecheck.constants.architecture_constants import (
-    DEFAULT_DOCUMENT_TEMPLATE,
     NO_DOCUMENT_FIRST,
     NO_PROJECT_OPEN,
     NO_SCOPE,
@@ -288,7 +288,7 @@ def has_document_changed(project_path: str, doc_name: str) -> bool:
 
 def display_diagram(project_path: str, doc_name: str, diagram_type: str) -> str:
     """
-    Display a diagram based on type.
+    Display a diagram based on type, using Mermaid for all diagram types.
 
     Args:
         project_path: Path to the project
@@ -299,44 +299,25 @@ def display_diagram(project_path: str, doc_name: str, diagram_type: str) -> str:
         HTML content for diagram display
     """
     if not project_path or not doc_name:
-        return NO_DOCUMENT_FIRST
+        return NO_DOCUMENT_FIRST_TEMPLATE
 
-    if diagram_type == "mermaid":
-        # Get Mermaid diagram by calling controller
-        try:
-            mermaid_code = ArchitectureController.get_mermaid_diagram(project_path, doc_name)
-            if not mermaid_code or mermaid_code.strip() == "":
-                return "<p>⚠️ No Mermaid diagram available. Please generate diagrams first.</p>"
-
-            print(f"Generated Mermaid diagram of length: {len(mermaid_code)}")
-
-            return f"""
-            <div class="mermaid">
-            {mermaid_code}
-            </div>
-            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-            <script>mermaid.initialize({{startOnLoad:true}});</script>
-            """
-        except Exception as e:
-            print(f"Error generating Mermaid diagram: {e}")
-            import traceback
-            traceback.print_exc()
-            return f"<p>❌ Error generating Mermaid diagram: {str(e)}</p>"
-
-    # Get regular SVG diagram by calling controller
+    # Get Mermaid diagram HTML by calling controller
     try:
-        diagram = ArchitectureController.get_diagram(project_path, doc_name, diagram_type)
-        if diagram and hasattr(diagram, 'content') and diagram.content:
-            print(f"Got {diagram_type} diagram of length: {len(diagram.content)}")
-            return f'<div style="padding: 10px; border: 1px solid #ddd; border-radius: 8px; background-color: white;">{diagram.content}</div>'
-        else:
-            print(f"No {diagram_type} diagram available for {doc_name}")
-            return '<p>⚠️ No diagram available. Please generate diagrams first.</p>'
+        # Use the controller method to get Mermaid HTML
+        html = ArchitectureController.get_mermaid_diagram_html(project_path, doc_name, diagram_type)
+        if not html or html.strip() == "":
+            return "<p>⚠️ No diagram available. Please generate diagrams first.</p>"
+        
+        return html
     except Exception as e:
-        print(f"Error loading diagram: {e}")
+        print(f"Error displaying diagram: {e}")
         import traceback
         traceback.print_exc()
-        return f"<p>❌ Error loading diagram: {str(e)}</p>"
+        from vibecheck.constants.architecture_templates import DIAGRAM_ERROR_TEMPLATE
+        return DIAGRAM_ERROR_TEMPLATE.format(
+            diagram_type=diagram_type,
+            error_message=str(e)
+        )
 
 
 # ----- UI state management utilities -----
