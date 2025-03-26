@@ -158,3 +158,5 @@ servitors/*
 *.onnx
 
 lsa-win-*
+
+.vibecheck
