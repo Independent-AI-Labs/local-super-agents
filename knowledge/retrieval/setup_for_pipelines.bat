@@ -5,7 +5,7 @@ REM Install dependencies from requirements.txt
 pip install -r requirements-hype.txt
 
 REM Run the rebuild.sh script
-bash ./rebuild_for_pipelines.sh
+call rebuild_for_pipelines.bat
 
 REM Display success message
 echo Installation and rebuild process completed successfully!
